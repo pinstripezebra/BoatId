@@ -33,6 +33,7 @@ back_end_dir = os.path.dirname(current_file_dir)  # /back_end
 project_root = os.path.dirname(back_end_dir)  # /project_root
 
 users = pd.read_csv(os.path.join(project_root, 'data', 'users.csv'))
+boats = pd.read_csv(os.path.join(project_root, 'data', 'boats.csv'))
 
 # Defining queries to create tables
 users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
@@ -49,20 +50,41 @@ users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
     )
     """
 
+boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_identifications (
+    id UUID PRIMARY KEY,
+    user_id VARCHAR(255),
+    image_url VARCHAR(500) NOT NULL,
+    image_s3_key VARCHAR(500) NOT NULL,
+    make VARCHAR(100),
+    model VARCHAR(100),
+    boat_type VARCHAR(50),
+    dimensions JSONB,
+    description TEXT,
+    confidence_score DECIMAL(3,2),
+    openai_response JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )"""
 
 # Deleting tables if they already exist
 engine.delete_table('users')
+engine.delete_table('boat_identifications')
 
 # Ensuring each row of each dataframe has a unique ID
 if 'id' not in users.columns:
     users['id'] = [str(uuid.uuid4())[:8] for _ in range(len(users))]
 
+if 'id' not in boats.columns:
+    boats['id'] = [str(uuid.uuid4())[:8] for _ in range(len(boats))]
+
 
 # Create tables
 engine.create_table(users_table_creation_query)
+engine.create_table(boat_identifications_table_creation_query)
 
 # Populates the tables with data from the dataframes
 engine.populate_table_dynamic(users, 'users')
+engine.populate_table_dynamic(boats, 'boat_identifications')
 
 # Testing if the tables were created and populated correctly
 print(engine.test_table('users'))
+print(engine.test_table('boat_identifications'))
