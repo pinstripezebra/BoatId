@@ -4,3 +4,4 @@ backend/venv/
 mobile-app/node_modules/
 mobile-app/bin/
 mobile-app/lib/
+.env
