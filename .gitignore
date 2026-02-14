@@ -7,3 +7,5 @@ mobile-app/lib/
 .env
 data/*
 !data/.gitkeep
+startup.txt
+__pycache__/
