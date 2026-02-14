@@ -5,3 +5,5 @@ mobile-app/node_modules/
 mobile-app/bin/
 mobile-app/lib/
 .env
+data/*
+!data/.gitkeep
