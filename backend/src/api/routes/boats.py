@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 import json
 from models.boat import BoatIdentification
+from models.user import User
 from services.boat_identification import BoatIdentificationService
 from utils.database import get_db
+from api.routes.users import get_current_user
 
 router = APIRouter()
 security = HTTPBearer()
@@ -145,4 +147,39 @@ async def get_boat_identification(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving boat identification: {str(e)}"
+        )
+
+@router.get("/", summary="Get all boat identifications (admin only)")
+async def get_all_boats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = 50,
+    offset: int = 0
+):
+    """
+    Get list of all boat identifications (admin functionality).
+    """
+    try:
+        boats = db.query(BoatIdentification).offset(offset).limit(limit).all()
+        
+        return [
+            {
+                "id": str(boat.id),
+                "user_id": boat.user_id,
+                "make": boat.make,
+                "model": boat.model,
+                "boat_type": boat.boat_type,
+                "dimensions": boat.dimensions,
+                "description": boat.description,
+                "confidence_score": float(boat.confidence_score) if boat.confidence_score else None,
+                "image_url": boat.image_url,
+                "created_at": boat.created_at.isoformat()
+            }
+            for boat in boats
+        ]
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving boat identifications: {str(e)}"
         )
