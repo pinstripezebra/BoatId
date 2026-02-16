@@ -1,18 +1,99 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 import json
+import os
+import boto3
+import io
+from botocore.exceptions import ClientError, NoCredentialsError
 from models.boat import BoatIdentification
 from models.user import User
 from services.boat_identification import BoatIdentificationService
 from utils.database import get_db
 from api.routes.users import get_current_user
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 router = APIRouter()
 security = HTTPBearer()
 
+# Initialize S3 client
+s3_client = boto3.client('s3')
+aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
+
 boat_service = BoatIdentificationService()
+
+def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
+    """
+    Retrieve and stream boat image from S3 based on boat_id.
+    Returns the actual image file.
+    """
+    try:
+        # Get boat information from database
+        boat = db.query(BoatIdentification).filter(
+            BoatIdentification.id == boat_id
+        ).first()
+        
+        if not boat:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Boat not found"
+            )
+        
+        if not boat.image_s3_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No image associated with this boat"
+            )
+        
+        if not aws_bucket_name:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="S3 configuration not found"
+            )
+        
+        # Get image object from S3
+        try:
+            response = s3_client.get_object(Bucket=aws_bucket_name, Key=boat.image_s3_key)
+            image_content = response['Body'].read()
+            content_type = response.get('ContentType', 'image/png')
+            
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey':
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Image not found in S3"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error accessing S3: {str(e)}"
+            )
+        
+        # Return image as streaming response
+        return StreamingResponse(
+            io.BytesIO(image_content),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"inline; filename=\"{boat.make}_{boat.model}_image.png\""
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except NoCredentialsError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AWS credentials not configured"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving boat image: {str(e)}"
+        )
 
 @router.post("/identify", summary="Identify boat from image")
 async def identify_boat(
@@ -183,3 +264,15 @@ async def get_all_boats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving boat identifications: {str(e)}"
         )
+
+@router.get("/{boat_id}/image", summary="Get boat image from S3", response_class=StreamingResponse)
+async def get_boat_image(
+    boat_id: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Get the actual boat image file from S3 for a specific boat.
+    Returns the image directly for display in browser or download.
+    """
+    return get_boat_image_from_s3(boat_id, db)
