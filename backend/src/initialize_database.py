@@ -69,12 +69,39 @@ boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_i
 engine.delete_table('users')
 engine.delete_table('boat_identifications')
 
+# Initialize password context for hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password_safely(password: str) -> str:
+    """Hash a password with bcrypt 72-byte limit handling."""
+    # Truncate password to 72 bytes to comply with bcrypt limit
+    if len(password.encode('utf-8')) > 72:
+        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    return pwd_context.hash(password)
+
+# Hash passwords for all users
+users['password'] = users['password'].apply(hash_password_safely)
+
+# Add an admin user for testing
+admin_user = pd.DataFrame([{
+    'username': os.getenv('ADMIN_USERNAME'),
+    'password': hash_password_safely(os.getenv('ADMIN_PASSWORD')),
+    'email': os.getenv('ADMIN_EMAIL'),
+    'role': 'admin',
+    'location': None,
+    'phone_number': None,
+    'description': 'Administrator user for BoatId system'
+}])
+
+# Concatenate admin user with existing users
+users = pd.concat([users, admin_user], ignore_index=True)
+
 # Ensuring each row of each dataframe has a unique ID
 if 'id' not in users.columns:
-    users['id'] = [str(uuid.uuid4())[:8] for _ in range(len(users))]
+    users['id'] = [str(uuid.uuid4()) for _ in range(len(users))]
 
 if 'id' not in boats.columns:
-    boats['id'] = [str(uuid.uuid4())[:8] for _ in range(len(boats))]
+    boats['id'] = [str(uuid.uuid4()) for _ in range(len(boats))]
 
 
 # Create tables

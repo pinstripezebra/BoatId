@@ -6,10 +6,54 @@ from pydantic import BaseModel, EmailStr
 from models.user import User
 from utils.database import get_db
 from passlib.context import CryptContext
+import jwt
+import os
 
 router = APIRouter()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# JWT settings (should match auth.py)
+SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
+ALGORITHM = "HS256"
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    """Validate JWT token and return current user."""
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials - no user ID in token"
+            )
+        
+        # Get user from database
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"User not found with ID: {user_id}"
+            )
+        
+        return user
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication error: {str(e)}"
+        )
 
 class UserResponse(BaseModel):
     id: str
@@ -32,7 +76,7 @@ class UserUpdate(BaseModel):
 async def get_user_profile(
     user_id: str,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get user profile information.
@@ -70,7 +114,7 @@ async def update_user_profile(
     user_id: str,
     user_update: UserUpdate,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update user profile information.
@@ -114,7 +158,7 @@ async def update_user_profile(
 @router.get("/", summary="Get all users (admin only)")
 async def get_all_users(
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(get_current_user),
     limit: int = 50,
     offset: int = 0
 ):
