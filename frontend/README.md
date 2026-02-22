@@ -1,22 +1,99 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# BoatId Mobile App
 
-# Getting Started
+A React Native application for boat identification and cataloging.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## 🚤 Features
 
-## Step 1: Start Metro
+- **Clean Hello World Interface**: Professional welcome screen with interactive features
+- **Modular Component Architecture**: Reusable components for scalable development
+- **Dark/Light Mode Support**: Automatic theme switching based on device settings
+- **Interactive Feature Demos**: Clickable feature items with placeholder functionality
+- **TypeScript Support**: Full TypeScript integration for type safety
+- **Cross-Platform**: Supports both iOS and Android
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## 📱 Current Functionality
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### Components
+- **WelcomeCard**: Displays app introduction and description
+- **FeatureItem**: Interactive feature showcase items
+- **Button**: Reusable button component with multiple variants
+- **Config**: Centralized app configuration
 
-```sh
-# Using npm
+### Features Ready for Development
+- ✅ Camera Integration (placeholder)
+- ✅ Boat Identification (placeholder)
+- ✅ Data Storage (placeholder)
+- ✅ User Authentication (placeholder)
+
+## 🛠 Development Setup
+
+### Prerequisites
+- Node.js 18+
+- React Native 0.84.0
+- Android Studio (for Android development)
+- Xcode (for iOS development, macOS only)
+
+### Installation
+```bash
+cd frontend
+npm install
+```
+
+### Running the App
+```bash
+# Start Metro bundler
 npm start
 
-# OR using Yarn
-yarn start
+# Run on Android
+npm run android
+
+# Run on iOS (macOS only)
+npm run ios
 ```
+
+## 📁 Project Structure
+
+```
+frontend/
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── WelcomeCard.tsx
+│   │   ├── FeatureItem.tsx
+│   │   ├── Button.tsx
+│   │   └── index.ts
+│   └── config/              # App configuration
+│       └── index.ts
+├── App.tsx                  # Main application component
+├── index.js                 # App entry point
+└── package.json
+```
+
+## 🎨 Design System
+
+### Colors
+- **Primary**: #2196f3 (Blue)
+- **Secondary**: #1976d2 (Dark Blue)
+- **Background Light**: #f8f9fa
+- **Background Dark**: #1a1a1a
+
+### Typography
+- **Title**: 36px, Bold
+- **Subtitle**: 16px, Italic
+- **Feature Text**: 16px, Medium
+
+## 🚀 Next Steps
+
+This hello world app provides a solid foundation for building the complete BoatId application. The next development phases will include:
+
+1. **Camera Integration**: React Native Camera setup
+2. **Backend API Connection**: Connect to FastAPI backend
+3. **Authentication Flow**: Login/register screens
+4. **Boat Database**: CRUD operations for boat data
+5. **Image Upload**: S3 integration for image storage
+
+## 📄 License
+
+This project is part of the BoatId application suite.
 
 ## Step 2: Build and run your app
 

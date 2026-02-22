@@ -12,4 +12,9 @@ python_graph2.py
 front_end implementation.md
 __pycache__/
 
-frontend/
+frontend/.bundle/
+frontend/node_modules/
+frontend/ios/
+frontend/android/
+frontend/__tests__/
+frontend/README.md
