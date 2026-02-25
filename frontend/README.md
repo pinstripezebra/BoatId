@@ -1,4 +1,4 @@
-# BoatId Mobile App
+npm # BoatId Mobile App
 
 A React Native application for boat identification and cataloging.
 
