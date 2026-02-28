@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 
 // Import our custom components
-import {WelcomeCard, FeatureItem, Button} from './src/components';
+import {WelcomeCard, FeatureItem, Button, launchCameraFunction} from './src/components';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -33,8 +33,20 @@ function App(): React.JSX.Element {
   };
 
   // Feature handlers
-  const handleCameraPress = () => {
-    Alert.alert('Camera Feature', 'Camera integration coming soon!');
+  const handleCameraPress = async () => {
+    try {
+      const imageUri = await launchCameraFunction();
+      if (imageUri) {
+        Alert.alert('Success', `Image captured: ${imageUri}`);
+        // You can now process the image URI here
+        console.log('Image URI:', imageUri);
+      } else {
+        console.log('No image captured');
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert('Error', 'Failed to open camera');
+    }
   };
 
   const handleIdentificationPress = () => {
