@@ -84,7 +84,7 @@ async def identify_boat_from_image(
                 s3_bucket=aws_bucket_name or "boatid-images"
             )
             identification_id = await storage_service.store_identification_result(
-                image_filename=image.filename,
+                image_filename=image.filename or "boat_image.jpg",
                 image_data=image_data,
                 result=result
             )

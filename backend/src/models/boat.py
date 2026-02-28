@@ -32,6 +32,3 @@ class BoatIdentification(Base):
     
     def __repr__(self):
         return f"<BoatIdentification(id={self.id}, make={self.make}, model={self.model}, is_boat={self.is_boat})>"
-    
-    def __repr__(self):
-        return f"<BoatIdentification(id={self.id}, make={self.make}, model={self.model})>"
