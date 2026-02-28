@@ -5,9 +5,10 @@ interface FeatureItemProps {
   icon: string;
   title: string;
   onPress?: () => void;
+  disabled?: boolean;
 }
 
-const FeatureItem: React.FC<FeatureItemProps> = ({icon, title, onPress}) => {
+const FeatureItem: React.FC<FeatureItemProps> = ({icon, title, onPress, disabled = false}) => {
   const isDarkMode = useColorScheme() === 'dark';
   
   const textStyle = {
@@ -21,12 +22,13 @@ const FeatureItem: React.FC<FeatureItemProps> = ({icon, title, onPress}) => {
 
   return (
     <TouchableOpacity 
-      style={[styles.featureItem, cardStyle]} 
-      onPress={onPress}
-      activeOpacity={0.7}
+      style={[styles.featureItem, cardStyle, disabled && styles.disabledItem]} 
+      onPress={disabled ? undefined : onPress}
+      activeOpacity={disabled ? 1 : 0.7}
+      disabled={disabled}
     >
-      <Text style={styles.featureIcon}>{icon}</Text>
-      <Text style={[styles.featureText, textStyle]}>{title}</Text>
+      <Text style={[styles.featureIcon, disabled && styles.disabledText]}>{icon}</Text>
+      <Text style={[styles.featureText, textStyle, disabled && styles.disabledText]}>{title}</Text>
     </TouchableOpacity>
   );
 };
@@ -52,6 +54,12 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  disabledItem: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    opacity: 0.7,
   },
 });
 

@@ -5,7 +5,7 @@
  * @format
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -15,13 +15,18 @@ import {
   View,
   useColorScheme,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 
 // Import our custom components
-import {WelcomeCard, FeatureItem, Button, launchCameraFunction} from './src/components';
+import {WelcomeCard, FeatureItem, Button} from './src/components';
+import {useCameraIdentification} from './src/hooks/useCameraIdentification';
+import type {BoatIdentificationResponse} from './src/services';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
+  const { captureAndIdentify, isProcessing, lastResult } = useCameraIdentification();
+  const [identificationHistory, setIdentificationHistory] = useState<BoatIdentificationResponse[]>([]);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -35,41 +40,77 @@ function App(): React.JSX.Element {
   // Feature handlers
   const handleCameraPress = async () => {
     try {
-      const imageUri = await launchCameraFunction();
-      if (imageUri) {
-        Alert.alert('Success', `Image captured: ${imageUri}`);
-        // You can now process the image URI here
-        console.log('Image URI:', imageUri);
+      const result = await captureAndIdentify(['make', 'model', 'description', 'boat_type', 'year']);
+      
+      // Add to history
+      setIdentificationHistory(prev => [result, ...prev]);
+      
+      // Show result to user
+      if (result.is_boat) {
+        const details = result.boat_details;
+        const message = `
+Boat Identified! 🚤
+
+Make: ${details?.make || 'Unknown'}
+Model: ${details?.model || 'Unknown'}
+Type: ${details?.boat_type || 'Unknown'}
+Year: ${details?.year || 'Unknown'}
+Confidence: ${result.confidence || 'Unknown'}
+
+${details?.description || ''}`;
+        
+        Alert.alert('Success!', message.trim());
       } else {
-        console.log('No image captured');
+        Alert.alert(
+          'No Boat Detected',
+          result.message || 'The image does not appear to contain a boat.'
+        );
       }
     } catch (error) {
-      console.error('Camera error:', error);
-      Alert.alert('Error', 'Failed to open camera');
+      console.error('Camera identification failed:', error);
+      // Error already handled in the hook with Alert
     }
   };
 
   const handleIdentificationPress = () => {
-    Alert.alert('Boat Identification', 'AI boat identification coming soon!');
+    if (identificationHistory.length === 0) {
+      Alert.alert('No History', 'No boat identifications yet. Use the camera to identify a boat!');
+      return;
+    }
+    
+    const lastIdentification = identificationHistory[0];
+    if (lastIdentification.is_boat) {
+      const details = lastIdentification.boat_details;
+      const message = `
+Last Identification:
+
+Make: ${details?.make || 'Unknown'}
+Model: ${details?.model || 'Unknown'}
+Type: ${details?.boat_type || 'Unknown'}
+Description: ${details?.description || 'No description'}
+Confidence: ${lastIdentification.confidence || 'Unknown'}
+ID: ${lastIdentification.identification_id || 'Not stored'}`;
+      
+      Alert.alert('Last Result', message.trim());
+    } else {
+      Alert.alert('Last Result', 'Previous image was not identified as a boat.');
+    }
   };
 
   const handleStoragePress = () => {
-    Alert.alert('Data Storage', 'Cloud storage integration coming soon!');
+    const totalIdentifications = identificationHistory.length;
+    const boatIdentifications = identificationHistory.filter(r => r.is_boat).length;
+    
+    Alert.alert(
+      'Storage Info', 
+      `Total identifications: ${totalIdentifications}
+Boats found: ${boatIdentifications}
+Non-boats: ${totalIdentifications - boatIdentifications}`
+    );
   };
 
   const handleAuthPress = () => {
     Alert.alert('Authentication', 'User login system coming soon!');
-  };
-
-  const handleGetStarted = () => {
-    Alert.alert(
-      'Welcome to BoatId!',
-      'Ready to start building your boat identification app?',
-      [
-        {text: 'Yes, let\'s go!', style: 'default'},
-        {text: 'Not yet', style: 'cancel'},
-      ]
-    );
   };
 
   return (
@@ -96,26 +137,37 @@ function App(): React.JSX.Element {
             description="Your go-to app for identifying and cataloging boats. Take photos, identify vessels, and build your maritime database."
           />
 
+          {isProcessing && (
+            <View style={styles.processingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={[styles.processingText, textStyle]}>
+                Analyzing boat image...
+              </Text>
+            </View>
+          )}
+
           <View style={styles.featuresContainer}>
             <Text style={[styles.featuresTitle, textStyle]}>
-              Coming Features:
+              Features:
             </Text>
             
             <FeatureItem
               icon="📸"
-              title="Camera Integration"
+              title={isProcessing ? "Processing..." : "Identify Boat"}
               onPress={handleCameraPress}
+              disabled={isProcessing}
             />
 
             <FeatureItem
               icon="🔍"
-              title="Boat Identification"
+              title={`View Results (${identificationHistory.length})`}
               onPress={handleIdentificationPress}
+              disabled={identificationHistory.length === 0}
             />
 
             <FeatureItem
               icon="💾"
-              title="Data Storage"
+              title="Storage Stats"
               onPress={handleStoragePress}
             />
 
@@ -128,15 +180,18 @@ function App(): React.JSX.Element {
 
           <View style={styles.buttonContainer}>
             <Button
-              title="Get Started"
-              onPress={handleGetStarted}
+              title={isProcessing ? "Processing..." : "Capture & Identify Boat"}
+              onPress={handleCameraPress}
               variant="primary"
+              disabled={isProcessing}
             />
-            <Button
-              title="Learn More"
-              onPress={() => Alert.alert('Learn More', 'Visit our documentation!')}
-              variant="secondary"
-            />
+            {identificationHistory.length > 0 && (
+              <Button
+                title="View Last Result"
+                onPress={handleIdentificationPress}
+                variant="secondary"
+              />
+            )}
           </View>
         </View>
       </ScrollView>
@@ -177,6 +232,17 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 20,
+  },
+  processingContainer: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  processingText: {
+    marginTop: 10,
+    fontSize: 16,
   },
 });
 
