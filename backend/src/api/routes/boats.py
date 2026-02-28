@@ -27,6 +27,19 @@ aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
 
 boat_service = BoatIdentificationService()
 
+
+# for uploading files to s3 bucket
+@router.post("/upload", summary="Upload file to S3")
+async def upload_file_to_s3(file: UploadFile | None = None):
+    if file is None:
+        return {"error": "No file provided"}
+    try:
+        s3_client.upload_fileobj(file.file, aws_bucket_name, file.filename)
+        return {"message": "File uploaded successfully"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
     """
     Retrieve and stream boat image from S3 based on boat_id.
