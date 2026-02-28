@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 import json
@@ -10,10 +10,12 @@ import io
 from botocore.exceptions import ClientError, NoCredentialsError
 from models.boat import BoatIdentification
 from models.user import User
-from services.boat_identification import BoatIdentificationService
+from services.storage_service import BoatStorageService
 from utils.database import get_db
 from api.routes.users import get_current_user
 from dotenv import load_dotenv
+from image_identification import AnthropicBoatIdentifier, BoatIdentificationResult
+
 
 # Load environment variables
 load_dotenv()
@@ -24,8 +26,111 @@ security = HTTPBearer()
 # Initialize S3 client
 s3_client = boto3.client('s3')
 aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
+anthropic_key = os.getenv("ANTHROPIC_API_KEY")
 
-boat_service = BoatIdentificationService()
+# Dependency to get boat identifier
+def get_boat_identifier():
+    if not anthropic_key:
+        raise HTTPException(status_code=500, detail="Anthropic API key not configured")
+    return AnthropicBoatIdentifier(api_key=anthropic_key)
+
+@router.post("/identify")
+async def identify_boat_from_image(
+    image: UploadFile = File(..., description="Image file to analyze"),
+    requested_fields: Optional[str] = Form(None, description="Comma-separated list of fields to return"),
+    store_results: bool = Form(True, description="Whether to store results in database"),
+    identifier: AnthropicBoatIdentifier = Depends(get_boat_identifier),
+    db: Session = Depends(get_db)
+):
+    """
+    Identify boat details from an uploaded image using Anthropic's Claude Vision model.
+    
+    Returns structured information about the boat including make, model, type, and other details.
+    """
+    
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
+    if image.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid file type. Supported types: {', '.join(allowed_types)}"
+        )
+    
+    # Validate file size (10MB limit)
+    max_size = 10 * 1024 * 1024  # 10MB
+    if image.size and image.size > max_size:
+        raise HTTPException(
+            status_code=400, 
+            detail="File too large. Maximum size is 10MB."
+        )
+    
+    try:
+        # Read image data
+        image_data = await image.read()
+        
+        # Parse requested fields
+        fields = []
+        if requested_fields:
+            fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
+        
+        # Identify boat using Anthropic
+        result = await identifier.identify_boat(image_data, fields)
+        
+        # Store results if requested
+        identification_id = None
+        if store_results:
+            storage_service = BoatStorageService(
+                db_session=db,
+                s3_bucket=aws_bucket_name or "boatid-images"
+            )
+            identification_id = await storage_service.store_identification_result(
+                image_filename=image.filename,
+                image_data=image_data,
+                result=result
+            )
+        
+        # Build response
+        response_data = {
+            "success": True,
+            "identification_id": identification_id,
+            "filename": image.filename,
+            "is_boat": result.is_boat
+        }
+        
+        if result.is_boat:
+            # Add boat details to response
+            boat_data = {}
+            
+            # Include all non-None fields
+            for field_name in ['make', 'model', 'description', 'year', 'length', 
+                             'boat_type', 'hull_material', 'features']:
+                value = getattr(result, field_name)
+                if value is not None:
+                    # Only include if no specific fields requested or field was requested
+                    if not fields or field_name in fields:
+                        boat_data[field_name] = value
+            
+            response_data.update({
+                "boat_details": boat_data,
+                "confidence": result.confidence
+            })
+                
+        else:
+            response_data.update({
+                "message": "No boat detected in the image",
+                "confidence": result.confidence
+            })
+            if result.description:
+                response_data["description"] = result.description
+        
+        return JSONResponse(content=response_data, status_code=200)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 # for uploading files to s3 bucket
@@ -48,7 +153,7 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
     try:
         # Get boat information from database
         boat = db.query(BoatIdentification).filter(
-            BoatIdentification.id == boat_id
+            BoatIdentification.id == int(boat_id)
         ).first()
         
         if not boat:
@@ -108,184 +213,138 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
             detail=f"Error retrieving boat image: {str(e)}"
         )
 
-@router.post("/identify", summary="Identify boat from image")
-async def identify_boat(
-    image: UploadFile = File(...),
-    user_id: str = Form(...),
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+@router.get("/identifications")
+async def get_boat_identifications(
+    page: int = 1,
+    per_page: int = 50,
+    is_boat: Optional[bool] = None,
+    make: Optional[str] = None,
+    boat_type: Optional[str] = None,
+    confidence: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
-    """
-    Upload an image and get boat identification results.
-    """
-    try:
-        # Validate file type
-        if not image.content_type.startswith('image/'):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an image"
-            )
-        
-        # Process the image
-        result = await boat_service.identify_boat(image, user_id)
-        
-        # Save to database
-        boat_identification = BoatIdentification(
-            user_id=user_id,
-            image_url=result.get("image_url"),
-            image_s3_key=result.get("s3_key"),
-            make=result.get("make"),
-            model=result.get("model"),
-            boat_type=result.get("boat_type"),
-            dimensions=result.get("dimensions"),
-            description=result.get("description"),
-            confidence_score=result.get("confidence_score"),
-            openai_response=result.get("openai_response")
-        )
-        
-        db.add(boat_identification)
-        db.commit()
-        db.refresh(boat_identification)
-        
-        return {
-            "id": str(boat_identification.id),
-            "make": boat_identification.make,
-            "model": boat_identification.model,
-            "boat_type": boat_identification.boat_type,
-            "dimensions": boat_identification.dimensions,
-            "description": boat_identification.description,
-            "confidence_score": float(boat_identification.confidence_score),
-            "image_url": boat_identification.image_url
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error identifying boat: {str(e)}"
-        )
+    """Get paginated list of boat identifications with filtering"""
+    
+    storage_service = BoatStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "boatid-images"
+    )
+    
+    offset = (page - 1) * per_page
+    
+    results = storage_service.get_identification_results(
+        limit=per_page,
+        offset=offset,
+        is_boat=is_boat,
+        make=make,
+        boat_type=boat_type,
+        confidence=confidence
+    )
+    
+    return {
+        **results,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (results['total_count'] + per_page - 1) // per_page
+    }
 
-@router.get("/history/{user_id}", summary="Get user's boat identification history")
-async def get_boat_history(
-    user_id: str,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    limit: int = 10,
-    offset: int = 0
-):
-    """
-    Get a user's boat identification history.
-    """
-    try:
-        boats = db.query(BoatIdentification).filter(
-            BoatIdentification.user_id == user_id
-        ).offset(offset).limit(limit).all()
-        
-        return [
-            {
-                "id": str(boat.id),
-                "make": boat.make,
-                "model": boat.model,
-                "boat_type": boat.boat_type,
-                "dimensions": boat.dimensions,
-                "description": boat.description,
-                "confidence_score": float(boat.confidence_score) if boat.confidence_score else None,
-                "image_url": boat.image_url,
-                "created_at": boat.created_at.isoformat()
-            }
-            for boat in boats
-        ]
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving boat history: {str(e)}"
-        )
-
-@router.get("/{boat_id}", summary="Get specific boat identification")
+@router.get("/identifications/{identification_id}")
 async def get_boat_identification(
-    boat_id: str,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    identification_id: int,
+    db: Session = Depends(get_db)
 ):
-    """
-    Get details of a specific boat identification.
-    """
-    try:
-        boat = db.query(BoatIdentification).filter(
-            BoatIdentification.id == boat_id
-        ).first()
-        
-        if not boat:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Boat identification not found"
-            )
-        
-        return {
-            "id": str(boat.id),
-            "user_id": boat.user_id,
-            "make": boat.make,
-            "model": boat.model,
-            "boat_type": boat.boat_type,
-            "dimensions": boat.dimensions,
-            "description": boat.description,
-            "confidence_score": float(boat.confidence_score) if boat.confidence_score else None,
-            "image_url": boat.image_url,
-            "openai_response": boat.openai_response,
-            "created_at": boat.created_at.isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving boat identification: {str(e)}"
-        )
+    """Get specific boat identification by ID"""
+    
+    storage_service = BoatStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "boatid-images"
+    )
+    
+    result = storage_service.get_identification_by_id(identification_id)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Identification not found")
+    
+    return result
 
-@router.get("/", summary="Get all boat identifications (admin only)")
-async def get_all_boats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+@router.get("/search")
+async def search_boats(
+    q: str,
     limit: int = 50,
-    offset: int = 0
+    db: Session = Depends(get_db)
 ):
-    """
-    Get list of all boat identifications (admin functionality).
-    """
-    try:
-        boats = db.query(BoatIdentification).offset(offset).limit(limit).all()
-        
-        return [
-            {
-                "id": str(boat.id),
-                "user_id": boat.user_id,
-                "make": boat.make,
-                "model": boat.model,
-                "boat_type": boat.boat_type,
-                "dimensions": boat.dimensions,
-                "description": boat.description,
-                "confidence_score": float(boat.confidence_score) if boat.confidence_score else None,
-                "image_url": boat.image_url,
-                "created_at": boat.created_at.isoformat()
-            }
-            for boat in boats
-        ]
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving boat identifications: {str(e)}"
-        )
+    """Search boat identifications"""
+    
+    storage_service = BoatStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "boatid-images"
+    )
+    
+    results = storage_service.search_boats(q, limit)
+    
+    return {
+        "query": q,
+        "results": results,
+        "count": len(results)
+    }
 
-@router.get("/{boat_id}/image", summary="Get boat image from S3", response_class=StreamingResponse)
+@router.get("/identification-fields")
+async def get_available_identification_fields():
+    """
+    Get the list of available fields that can be requested for boat identification.
+    """
+    return {
+        "available_fields": [
+            {
+                "field": "make",
+                "description": "Manufacturer or brand name",
+                "example": "Sea Ray, Boston Whaler, Beneteau"
+            },
+            {
+                "field": "model", 
+                "description": "Specific model name",
+                "example": "Sundancer 350, Outrage 370"
+            },
+            {
+                "field": "description",
+                "description": "Detailed physical description of the boat",
+                "example": "White fiberglass cabin cruiser with blue stripe"
+            },
+            {
+                "field": "year",
+                "description": "Estimated year or year range",
+                "example": "2015, 2010-2015, unknown"
+            },
+            {
+                "field": "length",
+                "description": "Estimated length in feet", 
+                "example": "25, 30-35, unknown"
+            },
+            {
+                "field": "boat_type",
+                "description": "Type or category of boat",
+                "example": "sailboat, motorboat, yacht, fishing boat"
+            },
+            {
+                "field": "hull_material",
+                "description": "Material used for the hull",
+                "example": "fiberglass, wood, aluminum"
+            },
+            {
+                "field": "features",
+                "description": "Notable features and equipment (array)",
+                "example": ["hardtop", "fishing towers", "bow thruster"]
+            }
+        ]
+    }
+
+@router.get("/identifications/{identification_id}/image", response_class=StreamingResponse)
 async def get_boat_image(
-    boat_id: str,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    identification_id: int,
+    db: Session = Depends(get_db)
 ):
     """
-    Get the actual boat image file from S3 for a specific boat.
+    Get the actual boat image file from S3 for a specific boat identification.
     Returns the image directly for display in browser or download.
     """
-    return get_boat_image_from_s3(boat_id, db)
+    return get_boat_image_from_s3(str(identification_id), db)

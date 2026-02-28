@@ -1,23 +1,37 @@
-from sqlalchemy import Column, String, Text, DateTime, Numeric, func
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Index, Integer
 from utils.database import Base  # ← Importing shared base from utils.database
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-import uuid
+from sqlalchemy.dialects.postgresql import JSON
+from datetime import datetime
 
 class BoatIdentification(Base):
     __tablename__ = "boat_identifications"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(String(255), nullable=False)  # Reference to users table
-    image_url = Column(String(500), nullable=False)
-    image_s3_key = Column(String(500), nullable=False)
-    make = Column(String(100))
-    model = Column(String(100))
-    boat_type = Column(String(50))
-    dimensions = Column(JSONB)  # JSON field for boat dimensions
-    description = Column(Text)
-    confidence_score = Column(Numeric(3, 2))  # Decimal with 3 digits, 2 after decimal
-    openai_response = Column(JSONB)  # JSON field for full OpenAI response
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    image_filename = Column(String(255), nullable=False)
+    s3_image_key = Column(String(500), nullable=False)  # S3 object key
+    is_boat = Column(Boolean, nullable=False, index=True)
+    confidence = Column(String(10), index=True)  # high/medium/low
+    
+    # Store the complete JSON response for flexibility
+    identification_data = Column(JSON, nullable=False)
+    
+    # Extracted fields for fast queries (indexed)
+    make = Column(String(100), index=True)
+    model = Column(String(100), index=True)
+    boat_type = Column(String(50), index=True)
+    year_estimate = Column(String(20), index=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_boat_make_model', 'make', 'model'),
+        Index('idx_boat_type_confidence', 'boat_type', 'confidence'),
+        Index('idx_created_boat', 'created_at', 'is_boat'),
+    )
+    
+    def __repr__(self):
+        return f"<BoatIdentification(id={self.id}, make={self.make}, model={self.model}, is_boat={self.is_boat})>"
     
     def __repr__(self):
         return f"<BoatIdentification(id={self.id}, make={self.make}, model={self.model})>"

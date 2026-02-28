@@ -33,7 +33,7 @@ back_end_dir = os.path.dirname(current_file_dir)  # /back_end
 project_root = os.path.dirname(back_end_dir)  # /project_root
 
 users = pd.read_csv(os.path.join(project_root, 'data', 'users.csv'))
-boats = pd.read_csv(os.path.join(project_root, 'data', 'boats.csv'))
+# Note: boats.csv is no longer used as we're creating sample data directly
 
 # Defining queries to create tables
 users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
@@ -51,17 +51,16 @@ users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
     """
 
 boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_identifications (
-    id UUID PRIMARY KEY,
-    user_id VARCHAR(255),
-    image_url VARCHAR(500) NOT NULL,
-    image_s3_key VARCHAR(500) NOT NULL,
+    id SERIAL PRIMARY KEY,
+    image_filename VARCHAR(255) NOT NULL,
+    s3_image_key VARCHAR(500) NOT NULL,
+    is_boat BOOLEAN NOT NULL,
+    confidence VARCHAR(10),
+    identification_data JSON NOT NULL,
     make VARCHAR(100),
     model VARCHAR(100),
     boat_type VARCHAR(50),
-    dimensions JSONB,
-    description TEXT,
-    confidence_score DECIMAL(3,2),
-    openai_response JSONB,
+    year_estimate VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )"""
 
@@ -96,21 +95,75 @@ admin_user = pd.DataFrame([{
 # Concatenate admin user with existing users
 users = pd.concat([users, admin_user], ignore_index=True)
 
-# Ensuring each row of each dataframe has a unique ID
+# Ensuring each row of users dataframe has a unique ID
 if 'id' not in users.columns:
     users['id'] = [str(uuid.uuid4()) for _ in range(len(users))]
-
-if 'id' not in boats.columns:
-    boats['id'] = [str(uuid.uuid4()) for _ in range(len(boats))]
 
 
 # Create tables
 engine.create_table(users_table_creation_query)
 engine.create_table(boat_identifications_table_creation_query)
 
-# Populates the tables with data from the dataframes
+# Create indexes for better performance using individual calls
+index_queries = [
+    "CREATE INDEX IF NOT EXISTS idx_boat_make_model ON boat_identifications (make, model);",
+    "CREATE INDEX IF NOT EXISTS idx_boat_type_confidence ON boat_identifications (boat_type, confidence);",
+    "CREATE INDEX IF NOT EXISTS idx_created_boat ON boat_identifications (created_at, is_boat);",
+    "CREATE INDEX IF NOT EXISTS idx_is_boat ON boat_identifications (is_boat);",
+    "CREATE INDEX IF NOT EXISTS idx_confidence ON boat_identifications (confidence);",
+    "CREATE INDEX IF NOT EXISTS idx_make ON boat_identifications (make);",
+    "CREATE INDEX IF NOT EXISTS idx_model ON boat_identifications (model);",
+    "CREATE INDEX IF NOT EXISTS idx_boat_type ON boat_identifications (boat_type);"
+]
+
+for index_query in index_queries:
+    try:
+        engine.create_table(index_query)  # Reusing create_table method for index creation
+    except Exception as e:
+        print(f"Warning: Could not create index: {e}")
+
+# Populate users table
 engine.populate_table_dynamic(users, 'users')
-engine.populate_table_dynamic(boats, 'boat_identifications')
+
+# Create sample boat identification data that matches new schema
+sample_boat_data = pd.DataFrame([
+    {
+        'image_filename': 'sample_sailboat.jpg',
+        's3_image_key': 'boat-images/2024/01/01/sample1.jpg',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Beneteau", "model": "Oceanis 40.1", "description": "White fiberglass sailboat with blue trim", "boat_type": "sailboat", "confidence": "high", "length": "40", "features": ["roller furling", "wheel steering", "bimini top"]}',
+        'make': 'Beneteau',
+        'model': 'Oceanis 40.1',
+        'boat_type': 'sailboat',
+        'year_estimate': '2020'
+    },
+    {
+        'image_filename': 'sample_motorboat.jpg',
+        's3_image_key': 'boat-images/2024/01/01/sample2.jpg',
+        'is_boat': True,
+        'confidence': 'medium',
+        'identification_data': '{"make": "Sea Ray", "model": "unknown", "description": "White powerboat with hardtop", "boat_type": "motorboat", "confidence": "medium", "length": "30", "features": ["hardtop", "outriggers"]}',
+        'make': 'Sea Ray',
+        'model': None,
+        'boat_type': 'motorboat',
+        'year_estimate': 'unknown'
+    },
+    {
+        'image_filename': 'not_a_boat.jpg',
+        's3_image_key': 'boat-images/2024/01/01/sample3.jpg',
+        'is_boat': False,
+        'confidence': 'high',
+        'identification_data': '{"is_boat": false, "confidence": "high", "description": "This appears to be a car, not a boat"}',
+        'make': None,
+        'model': None,
+        'boat_type': None,
+        'year_estimate': None
+    }
+])
+
+# Populate boats table with sample data
+engine.populate_table_dynamic(sample_boat_data, 'boat_identifications')
 
 # Testing if the tables were created and populated correctly
 print(engine.test_table('users'))
