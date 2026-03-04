@@ -20,7 +20,7 @@ class BoatIdentificationResult:
     features: Optional[List[str]] = None
 
 class AnthropicBoatIdentifier:
-    def __init__(self, api_key: str, model: str = "claude-3-sonnet-20240229"):
+    def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
     

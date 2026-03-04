@@ -37,7 +37,8 @@ def get_boat_identifier():
 @router.post("/identify")
 async def identify_boat_from_image(
     image: UploadFile = File(..., description="Image file to analyze"),
-    requested_fields: Optional[str] = Form(None, description="Comma-separated list of fields to return"),
+    requested_fields: Optional[str] = Form(['make', 'model', 'description', 'year', 'length', 
+                             'boat_type', 'hull_material', 'features'], description="Comma-separated list of fields to return"),
     store_results: bool = Form(True, description="Whether to store results in database"),
     identifier: AnthropicBoatIdentifier = Depends(get_boat_identifier),
     db: Session = Depends(get_db)
