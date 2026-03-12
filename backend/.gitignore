@@ -34,6 +34,9 @@ apprunner.yaml
 # AWS IAM policy (contains account details)
 iam-policy.json
 
+# Public App Runner config (safe to commit)
+# apprunner-public.yaml
+
 # Virtual environments
 venv/
 .venv/

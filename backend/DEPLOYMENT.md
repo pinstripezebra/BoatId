@@ -15,7 +15,8 @@ This directory contains the FastAPI backend for the BoatId boat identification a
 1. AWS CLI configured with appropriate permissions
 2. GitHub account for code repository  
 3. Python boto3 library: `pip install boto3`
-4. Existing RDS and S3 resources (already configured)
+4. **GitHub connection in AWS App Runner** (see troubleshooting if needed)
+5. Existing RDS and S3 resources (already configured)
 
 ## Quick Deployment
 
@@ -41,7 +42,7 @@ git branch -M main
 git push -u origin main
 ```
 
-**Note**: `apprunner.yaml` and `iam-policy.json` are excluded from git for security
+**Note**: Only `apprunner-public.yaml` (safe config) is tracked. Secrets stay local in `apprunner.yaml`
 
 ### 3. Deploy with Python Script
 
@@ -69,7 +70,9 @@ Test endpoints:
 ## Security Notes
 
 - `apprunner.yaml` contains API keys and credentials - excluded from git
+- `apprunner-public.yaml` contains build config only - safe to commit
 - `iam-policy.json` contains AWS account details - excluded from git
+- **Deployment approach**: Secrets are injected via API, not stored in repository
 - Use template files (`.template`) as starting points
 - Never commit actual credentials, account IDs, or resource names
 - `.env` files are also excluded from git via `.gitignore`
@@ -77,7 +80,8 @@ Test endpoints:
 
 ## Configuration Files
 
-- `apprunner.yaml.template` - App Runner service configuration template
+- `apprunner.yaml.template` - App Runner service configuration template (with secrets)
+- `apprunner-public.yaml` - Public build configuration (safe to commit)
 - `iam-policy.json.template` - IAM permissions template
 - `deploy.py` - Automated deployment script using boto3
 - `requirements.txt` - Python dependencies
@@ -85,8 +89,14 @@ Test endpoints:
 
 ## Environment Variables
 
-All environment variables are configured in `apprunner.yaml`:
+Environment variables are handled securely:
 
+- **Local secrets**: Stored in `apprunner.yaml` (gitignored)
+- **Deployment**: Script reads local config and injects via AWS API
+- **Repository**: Only contains `apprunner-public.yaml` with build instructions
+- **Security**: Secrets never touch the git repository
+
+Variables include:
 - **Database**: RDS connection details
 - **Storage**: S3 bucket configuration  
 - **AI**: Anthropic API key
@@ -148,7 +158,14 @@ python deploy.py https://github.com/yourusername/boatid-backend
 
 ### Common Issues
 
-1. **Deployment Script Errors**
+1. **GitHub Connection Error** (`Authentication configuration is invalid`)
+   - Create GitHub connection first: AWS Console > App Runner > GitHub connections
+   - Click "Create connection" and authorize GitHub access
+   - PowerShell CLI: `aws apprunner create-connection --connection-name github-connection --provider-type GITHUB --region us-west-2`
+   - If you get "Connection name already exists" - that's good! Proceed with deployment
+   - Then authorize the connection in your GitHub account
+
+2. **Deployment Script Errors**
    - Ensure AWS CLI is configured: `aws configure`
    - Check GitHub URL is accessible and contains apprunner.yaml
    - Verify environment variables in .env file
