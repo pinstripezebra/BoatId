@@ -8,9 +8,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend', 'src'))
 
-# Import the FastAPI app (avoid circular import)
-import backend.src.main as backend_main
-app = backend_main.app
+# Import the FastAPI app directly from main module 
+from main import app
 
 # Export the app for uvicorn
 __all__ = ['app']
