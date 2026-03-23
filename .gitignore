@@ -21,3 +21,6 @@ frontend/README.md
 start-boatid.
 
 backend/deploy.py
+# Deployment logs (may contain secrets)
+deploy.log
+backend/deploy.log
