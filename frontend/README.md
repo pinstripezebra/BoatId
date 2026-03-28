@@ -94,6 +94,63 @@ This hello world app provides a solid foundation for building the complete BoatI
 
 This project is part of the BoatId application suite.
 
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph Client["📱 Mobile Client"]
+        RN["React Native App<br/>(Android / iOS)"]
+        CAM["Camera Module<br/>react-native-image-picker"]
+        API_SVC["API Service Layer<br/>httpClient / boatApi"]
+    end
+
+    subgraph AWS["☁️ AWS Cloud (us-west-2)"]
+        ALB["Application Load Balancer<br/>HTTP :80"]
+
+        subgraph ECS["ECS Fargate Cluster"]
+            FAST["FastAPI Backend<br/>uvicorn :8080"]
+        end
+
+        subgraph Routes["API Routes"]
+            AUTH["/auth<br/>Register, Login, JWT Tokens"]
+            BOATS["/api/v1/boats<br/>Identify, Upload, Search"]
+            USERS["/api/v1/users<br/>Profiles, Admin"]
+        end
+
+        subgraph Services["Backend Services"]
+            ID_SVC["Boat Identification<br/>Service"]
+            S3_SVC["S3 Storage<br/>Service"]
+            DB_SVC["Storage Service<br/>(CRUD)"]
+        end
+
+        ANTHROPIC["Anthropic Claude<br/>Vision API<br/>(claude-3-haiku)"]
+        S3["AWS S3<br/>Image Storage<br/>lsee-farmzilla-images"]
+        RDS["AWS RDS<br/>PostgreSQL<br/>"]
+    end
+
+    RN --> CAM
+    CAM --> API_SVC
+    API_SVC -->|"HTTP Requests"| ALB
+    ALB -->|"Forward :8080"| FAST
+    FAST --> AUTH
+    FAST --> BOATS
+    FAST --> USERS
+    BOATS --> ID_SVC
+    BOATS --> DB_SVC
+    ID_SVC --> ANTHROPIC
+    ID_SVC --> S3_SVC
+    S3_SVC --> S3
+    DB_SVC --> RDS
+    AUTH --> RDS
+    USERS --> RDS
+
+    style Client fill:#E3F2FD,stroke:#1565C0
+    style AWS fill:#FFF3E0,stroke:#E65100
+    style ECS fill:#E8F5E9,stroke:#2E7D32
+    style Routes fill:#F3E5F5,stroke:#7B1FA2
+    style Services fill:#FFF9C4,stroke:#F9A825
+```
+
 ## Step 2: Build and run your app
 
 With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
