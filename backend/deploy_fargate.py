@@ -283,7 +283,157 @@ def ensure_security_group(ec2, vpc_id):
     return sg_id
 
 
-def create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id):
+def ensure_alb_security_group(ec2, vpc_id):
+    """Create or find a security group for the ALB that allows inbound on port 80."""
+    sg_name = f"{SERVICE_NAME}-alb-sg"
+    try:
+        resp = ec2.describe_security_groups(
+            Filters=[
+                {"Name": "group-name", "Values": [sg_name]},
+                {"Name": "vpc-id", "Values": [vpc_id]},
+            ]
+        )
+        if resp["SecurityGroups"]:
+            sg_id = resp["SecurityGroups"][0]["GroupId"]
+            logger.info(f"Using existing ALB security group: {sg_id}")
+            return sg_id
+    except ClientError:
+        pass
+
+    resp = ec2.create_security_group(
+        GroupName=sg_name,
+        Description="BoatId ALB - allows HTTP traffic",
+        VpcId=vpc_id,
+    )
+    sg_id = resp["GroupId"]
+
+    ec2.authorize_security_group_ingress(
+        GroupId=sg_id,
+        IpPermissions=[{
+            "IpProtocol": "tcp",
+            "FromPort": 80,
+            "ToPort": 80,
+            "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "HTTP access"}],
+        }],
+    )
+    logger.info(f"Created ALB security group: {sg_id}")
+    return sg_id
+
+
+def ensure_fargate_sg_allows_alb(ec2, fargate_sg_id, alb_sg_id):
+    """Ensure the Fargate SG allows inbound from the ALB SG on the container port."""
+    try:
+        ec2.authorize_security_group_ingress(
+            GroupId=fargate_sg_id,
+            IpPermissions=[{
+                "IpProtocol": "tcp",
+                "FromPort": CONTAINER_PORT,
+                "ToPort": CONTAINER_PORT,
+                "UserIdGroupPairs": [{"GroupId": alb_sg_id, "Description": "ALB to Fargate"}],
+            }],
+        )
+        logger.info(f"Added ALB SG {alb_sg_id} to Fargate SG {fargate_sg_id} inbound rules")
+    except ClientError as e:
+        if "Duplicate" in str(e) or "InvalidPermission.Duplicate" in str(e):
+            logger.info("Fargate SG already allows ALB traffic")
+        else:
+            raise
+
+
+def ensure_alb(elbv2, vpc_id, subnet_ids, alb_sg_id):
+    """Create or find the Application Load Balancer."""
+    alb_name = f"{SERVICE_NAME}-alb"
+
+    # Check if ALB already exists
+    try:
+        resp = elbv2.describe_load_balancers(Names=[alb_name])
+        if resp["LoadBalancers"]:
+            alb = resp["LoadBalancers"][0]
+            logger.info(f"Using existing ALB: {alb['DNSName']}")
+            return alb["LoadBalancerArn"], alb["DNSName"]
+    except ClientError as e:
+        if "LoadBalancerNotFound" not in str(e):
+            raise
+
+    resp = elbv2.create_load_balancer(
+        Name=alb_name,
+        Subnets=subnet_ids,
+        SecurityGroups=[alb_sg_id],
+        Scheme="internet-facing",
+        Type="application",
+        IpAddressType="ipv4",
+    )
+    alb = resp["LoadBalancers"][0]
+    alb_arn = alb["LoadBalancerArn"]
+    alb_dns = alb["DNSName"]
+    logger.info(f"Created ALB: {alb_dns}")
+
+    # Wait for ALB to become active
+    logger.info("Waiting for ALB to become active...")
+    waiter = elbv2.get_waiter("load_balancer_available")
+    waiter.wait(LoadBalancerArns=[alb_arn])
+    logger.info("ALB is active")
+
+    return alb_arn, alb_dns
+
+
+def ensure_target_group(elbv2, vpc_id):
+    """Create or find the target group for Fargate tasks."""
+    tg_name = f"{SERVICE_NAME}-tg"
+
+    # Check if target group already exists
+    try:
+        resp = elbv2.describe_target_groups(Names=[tg_name])
+        if resp["TargetGroups"]:
+            tg_arn = resp["TargetGroups"][0]["TargetGroupArn"]
+            logger.info(f"Using existing target group: {tg_name}")
+            return tg_arn
+    except ClientError as e:
+        if "TargetGroupNotFound" not in str(e):
+            raise
+
+    resp = elbv2.create_target_group(
+        Name=tg_name,
+        Protocol="HTTP",
+        Port=CONTAINER_PORT,
+        VpcId=vpc_id,
+        TargetType="ip",
+        HealthCheckProtocol="HTTP",
+        HealthCheckPath="/health",
+        HealthCheckIntervalSeconds=30,
+        HealthCheckTimeoutSeconds=10,
+        HealthyThresholdCount=2,
+        UnhealthyThresholdCount=3,
+        Matcher={"HttpCode": "200"},
+    )
+    tg_arn = resp["TargetGroups"][0]["TargetGroupArn"]
+    logger.info(f"Created target group: {tg_name}")
+    return tg_arn
+
+
+def ensure_alb_listener(elbv2, alb_arn, tg_arn):
+    """Create HTTP listener on port 80 if it doesn't exist."""
+    resp = elbv2.describe_listeners(LoadBalancerArn=alb_arn)
+    for listener in resp.get("Listeners", []):
+        if listener["Port"] == 80:
+            logger.info("ALB listener on port 80 already exists")
+            return listener["ListenerArn"]
+
+    resp = elbv2.create_listener(
+        LoadBalancerArn=alb_arn,
+        Protocol="HTTP",
+        Port=80,
+        DefaultActions=[{
+            "Type": "forward",
+            "TargetGroupArn": tg_arn,
+        }],
+    )
+    listener_arn = resp["Listeners"][0]["ListenerArn"]
+    logger.info("Created ALB listener on port 80")
+    return listener_arn
+
+
+def create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id, tg_arn=None):
     """Create or update ECS Fargate service."""
     try:
         resp = ecs.describe_services(cluster=cluster_name, services=[SERVICE_NAME])
@@ -301,8 +451,7 @@ def create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id)
     except ClientError:
         pass
 
-    logger.info(f"Creating new service '{SERVICE_NAME}'...")
-    ecs.create_service(
+    service_kwargs = dict(
         cluster=cluster_name,
         serviceName=SERVICE_NAME,
         taskDefinition=task_def_arn,
@@ -318,8 +467,18 @@ def create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id)
         healthCheckGracePeriodSeconds=60,
     )
 
+    if tg_arn:
+        service_kwargs["loadBalancers"] = [{
+            "targetGroupArn": tg_arn,
+            "containerName": SERVICE_NAME,
+            "containerPort": CONTAINER_PORT,
+        }]
 
-def wait_for_service(ecs, cluster_name):
+    logger.info(f"Creating new service '{SERVICE_NAME}'...")
+    ecs.create_service(**service_kwargs)
+
+
+def wait_for_service(ecs, cluster_name, alb_dns=None):
     """Wait for service to stabilize."""
     logger.info("Waiting for service to stabilize...")
     start = time.time()
@@ -333,7 +492,13 @@ def wait_for_service(ecs, cluster_name):
         logger.info(f"Running: {running}/{desired} (elapsed: {elapsed}s)")
 
         if running >= desired and desired > 0:
-            # Get task public IP
+            if alb_dns:
+                print(f"\n🎉 Deployed successfully!")
+                print(f"🌐 ALB URL:  http://{alb_dns}")
+                print(f"🔗 Health:   http://{alb_dns}/health")
+                return
+
+            # Fallback: get task public IP
             tasks = ecs.list_tasks(cluster=cluster_name, serviceName=SERVICE_NAME)
             if tasks["taskArns"]:
                 task_details = ecs.describe_tasks(cluster=cluster_name, tasks=tasks["taskArns"])
@@ -412,16 +577,25 @@ def deploy():
     vpc_id, subnet_ids = get_default_vpc_and_subnets(ec2)
     sg_id = ensure_security_group(ec2, vpc_id)
 
+    # Step 6b: ALB
+    print("⚖️  Setting up Application Load Balancer...")
+    elbv2 = boto3.client("elbv2", region_name=REGION)
+    alb_sg_id = ensure_alb_security_group(ec2, vpc_id)
+    ensure_fargate_sg_allows_alb(ec2, sg_id, alb_sg_id)
+    alb_arn, alb_dns = ensure_alb(elbv2, vpc_id, subnet_ids, alb_sg_id)
+    tg_arn = ensure_target_group(elbv2, vpc_id)
+    ensure_alb_listener(elbv2, alb_arn, tg_arn)
+
     # Step 7: ECS cluster
     print("🏗️  Ensuring ECS cluster...")
     ensure_ecs_cluster(ecs, cluster_name)
 
     # Step 8: Create/update service
     print("🚀 Deploying service...")
-    create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id)
+    create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id, tg_arn)
 
     # Step 9: Wait
-    wait_for_service(ecs, cluster_name)
+    wait_for_service(ecs, cluster_name, alb_dns)
 
 
 if __name__ == "__main__":

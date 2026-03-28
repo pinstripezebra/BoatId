@@ -63,50 +63,30 @@ export interface SearchResponse {
 
 export class BoatApiService {
   /**
-   * Convert React Native image URI to blob for form upload
-   */
-  private static async uriToBlob(uri: string): Promise<Blob> {
-    const response = await fetch(uri);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image from URI: ${response.statusText}`);
-    }
-    return await response.blob();
-  }
-
-  /**
    * Create FormData for file upload
    */
-  private static async createFormData(
+  private static createFormData(
     imageUri: string,
     requestedFields: string[],
     storeResults: boolean
-  ): Promise<FormData> {
+  ): FormData {
     const formData = new FormData();
     
-    try {
-      // Convert React Native image URI to blob
-      const blob = await this.uriToBlob(imageUri);
-      
-      // Create file from blob with proper filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `boat_image_${timestamp}.jpg`;
-      
-      // For React Native, we need to create the file object differently
-      const file = {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: filename,
-      } as any;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `boat_image_${timestamp}.jpg`;
+    
+    // React Native FormData accepts { uri, type, name } objects directly
+    const file = {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: filename,
+    } as any;
 
-      formData.append('image', file);
-      formData.append('requested_fields', requestedFields.join(','));
-      formData.append('store_results', storeResults.toString());
+    formData.append('image', file);
+    formData.append('requested_fields', requestedFields.join(','));
+    formData.append('store_results', storeResults.toString());
 
-      return formData;
-    } catch (error) {
-      console.error('Error creating form data:', error);
-      throw new Error('Failed to prepare image for upload');
-    }
+    return formData;
   }
 
   /**
@@ -117,8 +97,8 @@ export class BoatApiService {
     requestedFields: string[] = ['make', 'model', 'description', 'boat_type'],
     storeResults: boolean = true
   ): Promise<BoatIdentificationResponse> {
-    const formData = await this.createFormData(imageUri, requestedFields, storeResults);
-    return await HttpClient.uploadFile<BoatIdentificationResponse>('boats/identify', formData);
+    const formData = this.createFormData(imageUri, requestedFields, storeResults);
+    return await HttpClient.uploadFile<BoatIdentificationResponse>('api/v1/boats/identify', formData);
   }
 
   /**
@@ -144,14 +124,14 @@ export class BoatApiService {
     if (filters.boatType) queryParams.append('boat_type', filters.boatType);
     if (filters.confidence) queryParams.append('confidence', filters.confidence);
 
-    return await HttpClient.get<BoatIdentificationListResponse>(`boats/identifications?${queryParams.toString()}`);
+    return await HttpClient.get<BoatIdentificationListResponse>(`api/v1/boats/identifications?${queryParams.toString()}`);
   }
 
   /**
    * Get specific boat identification by ID
    */
   static async getIdentificationById(id: number) {
-    return await HttpClient.get(`boats/identifications/${id}`);
+    return await HttpClient.get(`api/v1/boats/identifications/${id}`);
   }
 
   /**
@@ -159,14 +139,14 @@ export class BoatApiService {
    */
   static async searchBoats(query: string, limit: number = 50): Promise<SearchResponse> {
     const queryParams = new URLSearchParams({ q: query.trim(), limit: limit.toString() });
-    return await HttpClient.get<SearchResponse>(`boats/search?${queryParams.toString()}`);
+    return await HttpClient.get<SearchResponse>(`api/v1/boats/search?${queryParams.toString()}`);
   }
 
   /**
    * Get available identification fields
    */
   static async getAvailableFields() {
-    return await HttpClient.get('boats/identification-fields');
+    return await HttpClient.get('api/v1/boats/identification-fields');
   }
 }
 

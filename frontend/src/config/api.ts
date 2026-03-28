@@ -1,1 +1,1 @@
-export const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = 'http://boatid-backend-alb-1900695147.us-west-2.elb.amazonaws.com';

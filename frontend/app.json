@@ -1,4 +1,19 @@
 {
   "name": "frontend",
-  "displayName": "frontend"
+  "displayName": "frontend",
+  "extra": {
+    "eas": {
+      "projectId": "d2732bdc-08fc-4024-a74c-aacf837feeb3"
+    }
+  },
+  "expo": {
+    "android": {
+      "package": "com.pinstripezebra.frontend"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d2732bdc-08fc-4024-a74c-aacf837feeb3"
+      }
+    }
+  }
 }
