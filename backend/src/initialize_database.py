@@ -52,6 +52,7 @@ users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
 
 boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_identifications (
     id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
     image_filename VARCHAR(255) NOT NULL,
     s3_image_key VARCHAR(500) NOT NULL,
     is_boat BOOLEAN NOT NULL,

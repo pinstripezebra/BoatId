@@ -12,7 +12,7 @@ from models.boat import BoatIdentification
 from models.user import User
 from services.storage_service import BoatStorageService
 from utils.database import get_db
-from api.routes.users import get_current_user
+from api.routes.users import get_current_user, get_current_user_optional
 from dotenv import load_dotenv
 from image_identification import AnthropicBoatIdentifier, BoatIdentificationResult
 
@@ -24,7 +24,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 # Initialize S3 client
-s3_client = boto3.client('s3')
+s3_client = boto3.client('s3', region_name=os.getenv('AWS_REGION', 'us-west-2'))
 aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
 anthropic_key = os.getenv("ANTHROPIC_API_KEY")
 
@@ -41,7 +41,8 @@ async def identify_boat_from_image(
                              'boat_type', 'hull_material', 'features'], description="Comma-separated list of fields to return"),
     store_results: bool = Form(True, description="Whether to store results in database"),
     identifier: AnthropicBoatIdentifier = Depends(get_boat_identifier),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Identify boat details from an uploaded image using Anthropic's Claude Vision model.
@@ -87,7 +88,8 @@ async def identify_boat_from_image(
             identification_id = await storage_service.store_identification_result(
                 image_filename=image.filename or "boat_image.jpg",
                 image_data=image_data,
-                result=result
+                result=result,
+                user_id=current_user.id if current_user else None
             )
         
         # Build response
@@ -163,7 +165,7 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
                 detail="Boat not found"
             )
         
-        if not boat.image_s3_key:
+        if not boat.s3_image_key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No image associated with this boat"
@@ -177,7 +179,7 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
         
         # Get image object from S3
         try:
-            response = s3_client.get_object(Bucket=aws_bucket_name, Key=boat.image_s3_key)
+            response = s3_client.get_object(Bucket=aws_bucket_name, Key=boat.s3_image_key)
             image_content = response['Body'].read()
             content_type = response.get('ContentType', 'image/png')
             
@@ -197,7 +199,7 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
             io.BytesIO(image_content),
             media_type=content_type,
             headers={
-                "Content-Disposition": f"inline; filename=\"{boat.make}_{boat.model}_image.png\""
+                "Content-Disposition": f"inline; filename=\"boat_{boat_id}_image.png\""
             }
         )
         
@@ -222,9 +224,10 @@ async def get_boat_identifications(
     make: Optional[str] = None,
     boat_type: Optional[str] = None,
     confidence: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get paginated list of boat identifications with filtering"""
+    """Get paginated list of boat identifications for the current user"""
     
     storage_service = BoatStorageService(
         db_session=db,
@@ -239,7 +242,8 @@ async def get_boat_identifications(
         is_boat=is_boat,
         make=make,
         boat_type=boat_type,
-        confidence=confidence
+        confidence=confidence,
+        user_id=current_user.id
     )
     
     return {

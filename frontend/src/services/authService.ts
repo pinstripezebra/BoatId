@@ -1,0 +1,139 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config/api';
+
+const TOKEN_KEY = '@BoatId:accessToken';
+const USER_KEY = '@BoatId:userData';
+
+export interface AuthUser {
+  user_id: string;
+  username: string;
+  role: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user_id: string;
+  username: string;
+  role: string;
+}
+
+export interface RegisterResponse {
+  message: string;
+  user_id: string;
+  username: string;
+}
+
+export class AuthService {
+  private static token: string | null = null;
+  private static user: AuthUser | null = null;
+
+  static getToken(): string | null {
+    return this.token;
+  }
+
+  static getUser(): AuthUser | null {
+    return this.user;
+  }
+
+  static async loadStoredAuth(): Promise<boolean> {
+    const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
+    const storedUser = await AsyncStorage.getItem(USER_KEY);
+
+    if (storedToken && storedUser) {
+      this.token = storedToken;
+      this.user = JSON.parse(storedUser);
+
+      // Try refreshing the token to verify it's still valid
+      try {
+        await this.refresh();
+        return true;
+      } catch {
+        // Token expired or invalid, clear stored data
+        await this.logout();
+        return false;
+      }
+    }
+    return false;
+  }
+
+  static async login(username: string, password: string): Promise<LoginResponse> {
+    const url = `${API_BASE_URL}/auth/login`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Login failed');
+    }
+
+    const data: LoginResponse = await response.json();
+
+    this.token = data.access_token;
+    this.user = {
+      user_id: data.user_id,
+      username: data.username,
+      role: data.role,
+    };
+
+    await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
+
+    return data;
+  }
+
+  static async register(
+    username: string,
+    password: string,
+    email: string,
+  ): Promise<RegisterResponse> {
+    const url = `${API_BASE_URL}/auth/register`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Registration failed');
+    }
+
+    return await response.json();
+  }
+
+  static async refresh(): Promise<void> {
+    if (!this.token) throw new Error('No token to refresh');
+
+    const url = `${API_BASE_URL}/auth/refresh`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+
+    if (!response.ok) throw new Error('Token refresh failed');
+
+    const data = await response.json();
+    this.token = data.access_token;
+    this.user = {
+      user_id: data.user_id,
+      username: data.username,
+      role: data.role,
+    };
+
+    await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
+  }
+
+  static async logout(): Promise<void> {
+    this.token = null;
+    this.user = null;
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_KEY);
+  }
+}
+
+export default AuthService;

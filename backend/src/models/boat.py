@@ -1,12 +1,13 @@
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Index, Integer
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Index, Integer, ForeignKey
 from utils.database import Base  # ← Importing shared base from utils.database
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
 
 class BoatIdentification(Base):
     __tablename__ = "boat_identifications"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True, index=True)
     image_filename = Column(String(255), nullable=False)
     s3_image_key = Column(String(500), nullable=False)  # S3 object key
     is_boat = Column(Boolean, nullable=False, index=True)

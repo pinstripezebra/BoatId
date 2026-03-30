@@ -1,0 +1,218 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  useColorScheme,
+} from 'react-native';
+import { AuthService } from '../services/authService';
+
+interface LoginScreenProps {
+  onLoginSuccess: () => void;
+}
+
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+  const isDarkMode = useColorScheme() === 'dark';
+  const [isLogin, setIsLogin] = useState(true);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const textColor = isDarkMode ? '#ffffff' : '#333333';
+  const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
+  const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
+  const inputBg = isDarkMode ? '#333333' : '#f5f5f5';
+  const inputBorder = isDarkMode ? '#555555' : '#e0e0e0';
+
+  const handleSubmit = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+    if (!isLogin && !email.trim()) {
+      Alert.alert('Error', 'Please enter your email');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      if (isLogin) {
+        await AuthService.login(username.trim(), password);
+        onLoginSuccess();
+      } else {
+        await AuthService.register(username.trim(), password, email.trim());
+        // Auto-login after registration
+        await AuthService.login(username.trim(), password);
+        onLoginSuccess();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      Alert.alert('Error', message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: bgColor }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={[styles.appTitle, { color: textColor }]}>⚓ BoatID</Text>
+        <Text style={[styles.appSubtitle, { color: textColor }]}>
+          Boat Identification Made Simple
+        </Text>
+
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
+          <Text style={[styles.cardTitle, { color: textColor }]}>
+            {isLogin ? 'Sign In' : 'Create Account'}
+          </Text>
+
+          <TextInput
+            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
+            placeholder="Username"
+            placeholderTextColor={isDarkMode ? '#888' : '#999'}
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          {!isLogin && (
+            <TextInput
+              style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
+              placeholder="Email"
+              placeholderTextColor={isDarkMode ? '#888' : '#999'}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoCorrect={false}
+            />
+          )}
+
+          <TextInput
+            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
+            placeholder="Password"
+            placeholderTextColor={isDarkMode ? '#888' : '#999'}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          <TouchableOpacity
+            style={[styles.submitButton, isLoading && styles.disabledButton]}
+            onPress={handleSubmit}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.submitButtonText}>
+                {isLogin ? 'Sign In' : 'Create Account'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.switchButton}
+            onPress={() => {
+              setIsLogin(!isLogin);
+              setEmail('');
+            }}
+          >
+            <Text style={styles.switchButtonText}>
+              {isLogin
+                ? "Don't have an account? Sign Up"
+                : 'Already have an account? Sign In'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  appTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  appSubtitle: {
+    fontSize: 16,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    opacity: 0.7,
+    marginBottom: 40,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  submitButton: {
+    backgroundColor: '#2196f3',
+    borderRadius: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  disabledButton: {
+    backgroundColor: '#90CAF9',
+  },
+  submitButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  switchButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  switchButtonText: {
+    color: '#2196f3',
+    fontSize: 14,
+  },
+});
+
+export default LoginScreen;

@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -20,13 +20,17 @@ import {
 
 // Import our custom components
 import {WelcomeCard, FeatureItem, Button} from './src/components';
+import LoginScreen from './src/components/LoginScreen';
+import PreviousResultsModal from './src/components/PreviousResultsModal';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
-import type {BoatIdentificationResponse} from './src/services';
+import { AuthService } from './src/services/authService';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
-  const { captureAndIdentify, isProcessing, lastResult } = useCameraIdentification();
-  const [identificationHistory, setIdentificationHistory] = useState<BoatIdentificationResponse[]>([]);
+  const { captureAndIdentify, isProcessing } = useCameraIdentification();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [showPreviousResults, setShowPreviousResults] = useState(false);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -37,15 +41,35 @@ function App(): React.JSX.Element {
     color: isDarkMode ? '#ffffff' : '#333333',
   };
 
+  // Check for stored auth on app launch
+  useEffect(() => {
+    AuthService.loadStoredAuth().then(authenticated => {
+      setIsLoggedIn(authenticated);
+      setIsCheckingAuth(false);
+    });
+  }, []);
+
+  // Show loading while checking stored auth
+  if (isCheckingAuth) {
+    return (
+      <SafeAreaView style={[backgroundStyle, styles.centered]}>
+        <ActivityIndicator size="large" color="#2196f3" />
+      </SafeAreaView>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isLoggedIn) {
+    return <LoginScreen onLoginSuccess={() => setIsLoggedIn(true)} />;
+  }
+
+  const user = AuthService.getUser();
+
   // Feature handlers
   const handleCameraPress = async () => {
     try {
       const result = await captureAndIdentify(['make', 'model', 'description', 'boat_type', 'year']);
       
-      // Add to history
-      setIdentificationHistory(prev => [result, ...prev]);
-      
-      // Show result to user
       if (result.is_boat) {
         const details = result.boat_details;
         const message = `
@@ -68,49 +92,12 @@ ${details?.description || ''}`;
       }
     } catch (error) {
       console.error('Camera identification failed:', error);
-      // Error already handled in the hook with Alert
     }
   };
 
-  const handleIdentificationPress = () => {
-    if (identificationHistory.length === 0) {
-      Alert.alert('No History', 'No boat identifications yet. Use the camera to identify a boat!');
-      return;
-    }
-    
-    const lastIdentification = identificationHistory[0];
-    if (lastIdentification.is_boat) {
-      const details = lastIdentification.boat_details;
-      const message = `
-Last Identification:
-
-Make: ${details?.make || 'Unknown'}
-Model: ${details?.model || 'Unknown'}
-Type: ${details?.boat_type || 'Unknown'}
-Description: ${details?.description || 'No description'}
-Confidence: ${lastIdentification.confidence || 'Unknown'}
-ID: ${lastIdentification.identification_id || 'Not stored'}`;
-      
-      Alert.alert('Last Result', message.trim());
-    } else {
-      Alert.alert('Last Result', 'Previous image was not identified as a boat.');
-    }
-  };
-
-  const handleStoragePress = () => {
-    const totalIdentifications = identificationHistory.length;
-    const boatIdentifications = identificationHistory.filter(r => r.is_boat).length;
-    
-    Alert.alert(
-      'Storage Info', 
-      `Total identifications: ${totalIdentifications}
-Boats found: ${boatIdentifications}
-Non-boats: ${totalIdentifications - boatIdentifications}`
-    );
-  };
-
-  const handleAuthPress = () => {
-    Alert.alert('Authentication', 'User login system coming soon!');
+  const handleLogout = async () => {
+    await AuthService.logout();
+    setIsLoggedIn(false);
   };
 
   return (
@@ -129,6 +116,11 @@ Non-boats: ${totalIdentifications - boatIdentifications}`
           <Text style={[styles.subtitle, textStyle]}>
             Boat Identification Made Simple
           </Text>
+          {user && (
+            <Text style={[styles.userLabel, textStyle]}>
+              Signed in as {user.username}
+            </Text>
+          )}
         </View>
 
         <View style={styles.contentContainer}>
@@ -159,22 +151,15 @@ Non-boats: ${totalIdentifications - boatIdentifications}`
             />
 
             <FeatureItem
-              icon="🔍"
-              title={`View Results (${identificationHistory.length})`}
-              onPress={handleIdentificationPress}
-              disabled={identificationHistory.length === 0}
+              icon="📋"
+              title="Previous Results"
+              onPress={() => setShowPreviousResults(true)}
             />
 
             <FeatureItem
-              icon="💾"
-              title="Storage Stats"
-              onPress={handleStoragePress}
-            />
-
-            <FeatureItem
-              icon="👤"
-              title="User Authentication"
-              onPress={handleAuthPress}
+              icon="🚪"
+              title="Sign Out"
+              onPress={handleLogout}
             />
           </View>
 
@@ -185,16 +170,19 @@ Non-boats: ${totalIdentifications - boatIdentifications}`
               variant="primary"
               disabled={isProcessing}
             />
-            {identificationHistory.length > 0 && (
-              <Button
-                title="View Last Result"
-                onPress={handleIdentificationPress}
-                variant="secondary"
-              />
-            )}
+            <Button
+              title="Previous Results"
+              onPress={() => setShowPreviousResults(true)}
+              variant="secondary"
+            />
           </View>
         </View>
       </ScrollView>
+
+      <PreviousResultsModal
+        visible={showPreviousResults}
+        onClose={() => setShowPreviousResults(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -218,6 +206,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontStyle: 'italic',
     opacity: 0.7,
+  },
+  userLabel: {
+    marginTop: 8,
+    fontSize: 14,
+    opacity: 0.6,
   },
   contentContainer: {
     flex: 1,
@@ -243,6 +236,10 @@ const styles = StyleSheet.create({
   processingText: {
     marginTop: 10,
     fontSize: 16,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

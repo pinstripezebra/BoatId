@@ -7,14 +7,18 @@ from models.boat import BoatIdentification
 from image_identification import BoatIdentificationResult
 from typing import List, Optional, Dict
 import os
+from uuid import UUID
 
 class BoatStorageService:
-    def __init__(self, db_session: Session, s3_bucket: str, aws_region: str = "us-east-1"):
+    def __init__(self, db_session: Session, s3_bucket: str, aws_region: str = None):
         self.db = db_session
+        
+        # Use provided region, env var, or default to us-west-2
+        region = aws_region or os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'us-west-2'))
         
         # Initialize S3 client with better error handling
         try:
-            self.s3_client = boto3.client('s3', region_name=aws_region)
+            self.s3_client = boto3.client('s3', region_name=region)
             self.bucket = s3_bucket
             
             # Test S3 connection by checking if bucket exists
@@ -22,14 +26,15 @@ class BoatStorageService:
         except Exception as e:
             print(f"Warning: S3 configuration issue: {e}")
             # Still create client for graceful degradation
-            self.s3_client = boto3.client('s3', region_name=aws_region)
+            self.s3_client = boto3.client('s3', region_name=region)
             self.bucket = s3_bucket
     
     async def store_identification_result(
         self, 
         image_filename: str,
         image_data: bytes,
-        result: BoatIdentificationResult
+        result: BoatIdentificationResult,
+        user_id: Optional[UUID] = None
     ) -> int:
         """Store image in S3 and identification data in RDS"""
         
@@ -70,6 +75,7 @@ class BoatStorageService:
             
             # Store in database
             db_record = BoatIdentification(
+                user_id=user_id,
                 image_filename=image_filename,
                 s3_image_key=s3_key,
                 is_boat=result.is_boat,
@@ -105,11 +111,16 @@ class BoatStorageService:
         is_boat: Optional[bool] = None,
         make: Optional[str] = None,
         boat_type: Optional[str] = None,
-        confidence: Optional[str] = None
+        confidence: Optional[str] = None,
+        user_id: Optional[UUID] = None
     ) -> Dict:
         """Get identification results with pagination and filtering"""
         
         query = self.db.query(BoatIdentification)
+        
+        # Filter by user
+        if user_id is not None:
+            query = query.filter(BoatIdentification.user_id == user_id)
         
         # Apply filters
         if is_boat is not None:

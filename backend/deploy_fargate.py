@@ -61,6 +61,7 @@ def load_env_vars():
         for item in config["run"]["env"]:
             env_vars[item["name"]] = item["value"]
     env_vars["PORT"] = str(CONTAINER_PORT)
+    env_vars["AWS_DEFAULT_REGION"] = REGION
     return env_vars
 
 

@@ -1,8 +1,17 @@
 import { API_BASE_URL } from '../config/api';
+import { AuthService } from './authService';
 
 export class HttpClient {
   private static async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}/${endpoint.startsWith('/') ? endpoint.slice(1) : endpoint}`;
+
+    // Attach auth token if available
+    const token = AuthService.getToken();
+    if (token) {
+      const headers = new Headers(options.headers);
+      headers.set('Authorization', `Bearer ${token}`);
+      options.headers = headers;
+    }
 
     const response = await fetch(url, options);
 
