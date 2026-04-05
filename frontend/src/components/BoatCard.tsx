@@ -1,10 +1,10 @@
 import React from 'react';
-import {View, Text, TouchableOpacity, StyleSheet, useColorScheme} from 'react-native';
+import {View, Text, Image, TouchableOpacity, StyleSheet, useColorScheme, ImageSourcePropType} from 'react-native';
 
 export interface BoatCardData {
   id: string;
   name: string;
-  imageUri?: string;
+  image?: ImageSourcePropType;
   type?: string;
   make?: string;
 }
@@ -13,7 +13,7 @@ interface BoatCardProps extends BoatCardData {
   onPress?: () => void;
 }
 
-const BoatCard: React.FC<BoatCardProps> = ({name, type, make, onPress}) => {
+const BoatCard: React.FC<BoatCardProps> = ({name, type, make, image, onPress}) => {
   const isDarkMode = useColorScheme() === 'dark';
 
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
@@ -25,9 +25,13 @@ const BoatCard: React.FC<BoatCardProps> = ({name, type, make, onPress}) => {
       style={[styles.card, {backgroundColor: cardBg}]}
       onPress={onPress}
       activeOpacity={0.8}>
-      <View style={styles.imagePlaceholder}>
-        <Text style={styles.placeholderEmoji}>🚤</Text>
-      </View>
+      {image ? (
+        <Image source={image} style={styles.image} resizeMode="cover" />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Text style={styles.placeholderEmoji}>🚤</Text>
+        </View>
+      )}
       <View style={styles.info}>
         <Text style={[styles.name, {color: textColor}]} numberOfLines={1}>
           {name}
@@ -60,6 +64,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  image: {
+    width: '100%',
+    height: 100,
   },
   placeholderEmoji: {
     fontSize: 36,

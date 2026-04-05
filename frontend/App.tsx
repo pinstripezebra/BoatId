@@ -21,6 +21,7 @@ import {
 
 import LoginScreen from './src/components/LoginScreen';
 import PreviousResultsModal from './src/components/PreviousResultsModal';
+import BoatDetailModal from './src/components/BoatDetailModal';
 import SearchBar from './src/components/SearchBar';
 import HorizontalBoatList from './src/components/HorizontalBoatList';
 import BottomNavBar from './src/components/BottomNavBar';
@@ -28,21 +29,29 @@ import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import type { BoatCardData } from './src/components/BoatCard';
 
+const boatImages = {
+  boat1: require('./src/assets/images/boat1.png'),
+  boat2: require('./src/assets/images/boat2.png'),
+  boat3: require('./src/assets/images/boat3.png'),
+  boat4: require('./src/assets/images/boat4.png'),
+  boat5: require('./src/assets/images/boat5.png'),
+};
+
 const POPULAR_BOATS: BoatCardData[] = [
-  {id: 'p1', name: 'Sea Ray Sundancer', make: 'Sea Ray', type: 'Cruiser'},
-  {id: 'p2', name: 'Boston Whaler Montauk', make: 'Boston Whaler', type: 'Center Console'},
-  {id: 'p3', name: 'Bayliner VR5', make: 'Bayliner', type: 'Bowrider'},
-  {id: 'p4', name: 'Yamaha 252S', make: 'Yamaha', type: 'Jet Boat'},
-  {id: 'p5', name: 'Mastercraft X24', make: 'Mastercraft', type: 'Wakeboard'},
-  {id: 'p6', name: 'Grady-White Freedom', make: 'Grady-White', type: 'Dual Console'},
+  {id: 'p1', name: 'Sea Ray Sundancer', make: 'Sea Ray', type: 'Cruiser', image: boatImages.boat1},
+  {id: 'p2', name: 'Boston Whaler Montauk', make: 'Boston Whaler', type: 'Center Console', image: boatImages.boat2},
+  {id: 'p3', name: 'Bayliner VR5', make: 'Bayliner', type: 'Bowrider', image: boatImages.boat3},
+  {id: 'p4', name: 'Yamaha 252S', make: 'Yamaha', type: 'Jet Boat', image: boatImages.boat4},
+  {id: 'p5', name: 'Mastercraft X24', make: 'Mastercraft', type: 'Wakeboard', image: boatImages.boat5},
+  {id: 'p6', name: 'Grady-White Freedom', make: 'Grady-White', type: 'Dual Console', image: boatImages.boat1},
 ];
 
 const NEARBY_BOATS: BoatCardData[] = [
-  {id: 'n1', name: 'Chaparral 267 SSX', make: 'Chaparral', type: 'Bowrider'},
-  {id: 'n2', name: 'Tracker Pro 170', make: 'Tracker', type: 'Bass Boat'},
-  {id: 'n3', name: 'Cobalt R8', make: 'Cobalt', type: 'Bowrider'},
-  {id: 'n4', name: 'Ranger Z520L', make: 'Ranger', type: 'Bass Boat'},
-  {id: 'n5', name: 'Malibu Wakesetter', make: 'Malibu', type: 'Wakeboard'},
+  {id: 'n1', name: 'Chaparral 267 SSX', make: 'Chaparral', type: 'Bowrider', image: boatImages.boat3},
+  {id: 'n2', name: 'Tracker Pro 170', make: 'Tracker', type: 'Bass Boat', image: boatImages.boat5},
+  {id: 'n3', name: 'Cobalt R8', make: 'Cobalt', type: 'Bowrider', image: boatImages.boat2},
+  {id: 'n4', name: 'Ranger Z520L', make: 'Ranger', type: 'Bass Boat', image: boatImages.boat4},
+  {id: 'n5', name: 'Malibu Wakesetter', make: 'Malibu', type: 'Wakeboard', image: boatImages.boat1},
 ];
 
 function App(): React.JSX.Element {
@@ -51,6 +60,7 @@ function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPreviousResults, setShowPreviousResults] = useState(false);
+  const [selectedBoat, setSelectedBoat] = useState<BoatCardData | null>(null);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -152,8 +162,8 @@ ${details?.description || ''}`;
 
         <SearchBar />
 
-        <HorizontalBoatList title="Popular Boats" boats={POPULAR_BOATS} />
-        <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} />
+        <HorizontalBoatList title="Popular Boats" boats={POPULAR_BOATS} onBoatPress={setSelectedBoat} />
+        <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} />
       </ScrollView>
 
       <BottomNavBar onCameraPress={handleCameraPress} isProcessing={isProcessing} />
@@ -161,6 +171,12 @@ ${details?.description || ''}`;
       <PreviousResultsModal
         visible={showPreviousResults}
         onClose={() => setShowPreviousResults(false)}
+      />
+
+      <BoatDetailModal
+        visible={selectedBoat !== null}
+        boat={selectedBoat}
+        onClose={() => setSelectedBoat(null)}
       />
     </SafeAreaView>
   );
