@@ -65,9 +65,19 @@ boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_i
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )"""
 
+refresh_tokens_table_creation_query = """CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    revoked BOOLEAN NOT NULL DEFAULT FALSE
+    )"""
+
 # Deleting tables if they already exist
-engine.delete_table('users')
+engine.delete_table('refresh_tokens')
 engine.delete_table('boat_identifications')
+engine.delete_table('users')
 
 # Initialize password context for hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -104,6 +114,7 @@ if 'id' not in users.columns:
 # Create tables
 engine.create_table(users_table_creation_query)
 engine.create_table(boat_identifications_table_creation_query)
+engine.create_table(refresh_tokens_table_creation_query)
 
 # Create indexes for better performance using individual calls
 index_queries = [
@@ -114,7 +125,9 @@ index_queries = [
     "CREATE INDEX IF NOT EXISTS idx_confidence ON boat_identifications (confidence);",
     "CREATE INDEX IF NOT EXISTS idx_make ON boat_identifications (make);",
     "CREATE INDEX IF NOT EXISTS idx_model ON boat_identifications (model);",
-    "CREATE INDEX IF NOT EXISTS idx_boat_type ON boat_identifications (boat_type);"
+    "CREATE INDEX IF NOT EXISTS idx_boat_type ON boat_identifications (boat_type);",
+    "CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON refresh_tokens (user_id);",
+    "CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens (token_hash);",
 ]
 
 for index_query in index_queries:

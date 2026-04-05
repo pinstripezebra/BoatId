@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Keychain from 'react-native-keychain';
 import { API_BASE_URL } from '../config/api';
 
 const TOKEN_KEY = '@BoatId:accessToken';
 const USER_KEY = '@BoatId:userData';
+const KEYCHAIN_SERVICE = 'com.boatid.refreshtoken';
 
 export interface AuthUser {
   user_id: string;
@@ -12,6 +14,7 @@ export interface AuthUser {
 
 export interface LoginResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
   user_id: string;
   username: string;
@@ -37,24 +40,22 @@ export class AuthService {
   }
 
   static async loadStoredAuth(): Promise<boolean> {
-    const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
-    const storedUser = await AsyncStorage.getItem(USER_KEY);
-
-    if (storedToken && storedUser) {
-      this.token = storedToken;
-      this.user = JSON.parse(storedUser);
-
-      // Try refreshing the token to verify it's still valid
-      try {
-        await this.refresh();
-        return true;
-      } catch {
-        // Token expired or invalid, clear stored data
-        await this.logout();
+    try {
+      // Retrieve refresh token from secure storage
+      const credentials = await Keychain.getGenericPassword({ service: KEYCHAIN_SERVICE });
+      if (!credentials) {
         return false;
       }
+      const refreshToken = credentials.password;
+
+      // Use the refresh token to get a new access token
+      await this.refreshWithToken(refreshToken);
+      return true;
+    } catch {
+      // Refresh token invalid or expired, clear everything
+      await this.logout();
+      return false;
     }
-    return false;
   }
 
   static async login(username: string, password: string): Promise<LoginResponse> {
@@ -79,8 +80,14 @@ export class AuthService {
       role: data.role,
     };
 
+    // Store access token and user data in AsyncStorage
     await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
+
+    // Store refresh token securely in Keychain
+    await Keychain.setGenericPassword('refreshToken', data.refresh_token, {
+      service: KEYCHAIN_SERVICE,
+    });
 
     return data;
   }
@@ -106,17 +113,25 @@ export class AuthService {
   }
 
   static async refresh(): Promise<void> {
-    if (!this.token) throw new Error('No token to refresh');
+    // Retrieve the refresh token from secure storage and use it
+    const credentials = await Keychain.getGenericPassword({ service: KEYCHAIN_SERVICE });
+    if (!credentials) {
+      throw new Error('No refresh token available');
+    }
+    await this.refreshWithToken(credentials.password);
+  }
 
+  private static async refreshWithToken(refreshToken: string): Promise<void> {
     const url = `${API_BASE_URL}/auth/refresh`;
     const response = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}` },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
     if (!response.ok) throw new Error('Token refresh failed');
 
-    const data = await response.json();
+    const data: LoginResponse = await response.json();
     this.token = data.access_token;
     this.user = {
       user_id: data.user_id,
@@ -124,15 +139,37 @@ export class AuthService {
       role: data.role,
     };
 
+    // Update stored tokens
     await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
+
+    // Store the rotated refresh token securely
+    await Keychain.setGenericPassword('refreshToken', data.refresh_token, {
+      service: KEYCHAIN_SERVICE,
+    });
   }
 
   static async logout(): Promise<void> {
+    // Revoke refresh token on the server
+    try {
+      const credentials = await Keychain.getGenericPassword({ service: KEYCHAIN_SERVICE });
+      if (credentials) {
+        const url = `${API_BASE_URL}/auth/logout`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: credentials.password }),
+        });
+      }
+    } catch {
+      // If revocation fails, still proceed with local cleanup
+    }
+
     this.token = null;
     this.user = null;
     await AsyncStorage.removeItem(TOKEN_KEY);
     await AsyncStorage.removeItem(USER_KEY);
+    await Keychain.resetGenericPassword({ service: KEYCHAIN_SERVICE });
   }
 }
 

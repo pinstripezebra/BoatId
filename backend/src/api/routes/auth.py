@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 import jwt
+import secrets
+import hashlib
+import uuid
 from passlib.context import CryptContext
 from models.user import User
+from models.refresh_token import RefreshToken
 from utils.database import get_db
 import os
 
@@ -18,6 +22,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "your-secret-key-here")  # Change in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 class UserRegistration(BaseModel):
     username: str
@@ -34,10 +39,17 @@ class UserLogin(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
     user_id: str
     username: str
     role: str
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
@@ -68,6 +80,27 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
     if not user or not verify_password(password, user.password):
         return None
     return user
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token with SHA-256 for secure storage."""
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+def create_refresh_token(db: Session, user_id: str) -> str:
+    """Generate a cryptographically random refresh token and store its hash in the database."""
+    raw_token = secrets.token_urlsafe(64)
+    token_hash = hash_refresh_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    db_token = RefreshToken(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        revoked=False,
+    )
+    db.add(db_token)
+    db.commit()
+    return raw_token
 
 @router.post("/register", summary="Register new user")
 async def register_user(
@@ -145,9 +178,11 @@ async def login_for_access_token(
             data={"sub": str(user.id), "username": user.username, "role": user.role},
             expires_delta=access_token_expires
         )
+        refresh_token = create_refresh_token(db, str(user.id))
         
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "user_id": str(user.id),
             "username": user.username,
@@ -185,9 +220,11 @@ async def login_user(
             data={"sub": str(user.id), "username": user.username, "role": user.role},
             expires_delta=access_token_expires
         )
+        refresh_token = create_refresh_token(db, str(user.id))
         
         return Token(
             access_token=access_token,
+            refresh_token=refresh_token,
             token_type="bearer",
             user_id=str(user.id),
             username=user.username,
@@ -204,53 +241,96 @@ async def login_user(
 
 @router.post("/refresh", summary="Refresh access token")
 async def refresh_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    refresh_data: RefreshRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Refresh an existing access token.
+    Exchange a valid refresh token for a new access token and rotated refresh token.
     """
     try:
-        # Decode the token
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        
-        if user_id is None:
+        token_hash = hash_refresh_token(refresh_data.refresh_token)
+        stored_token = db.query(RefreshToken).filter(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked == False,
+        ).first()
+
+        if not stored_token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials"
+                detail="Invalid refresh token"
             )
-        
-        # Get user from database
-        user = db.query(User).filter(User.id == user_id).first()
+
+        if stored_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            stored_token.revoked = True
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token expired"
+            )
+
+        # Verify user still exists
+        user = db.query(User).filter(User.id == stored_token.user_id).first()
         if not user:
+            stored_token.revoked = True
+            db.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
-        
-        # Create new access token
+
+        # Revoke the old refresh token (rotation)
+        stored_token.revoked = True
+        db.commit()
+
+        # Issue new access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": str(user.id), "username": user.username, "role": user.role},
             expires_delta=access_token_expires
         )
-        
+
+        # Issue new rotated refresh token
+        new_refresh_token = create_refresh_token(db, str(user.id))
+
         return Token(
             access_token=access_token,
+            refresh_token=new_refresh_token,
             token_type="bearer",
             user_id=str(user.id),
             username=user.username,
             role=user.role
         )
-        
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
-        )
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error refreshing token: {str(e)}"
+        )
+
+@router.post("/logout", summary="Revoke refresh token")
+async def logout(
+    logout_data: LogoutRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Revoke a refresh token on logout.
+    """
+    try:
+        token_hash = hash_refresh_token(logout_data.refresh_token)
+        stored_token = db.query(RefreshToken).filter(
+            RefreshToken.token_hash == token_hash,
+        ).first()
+
+        if stored_token:
+            stored_token.revoked = True
+            db.commit()
+
+        return {"message": "Logged out successfully"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error during logout: {str(e)}"
         )
