@@ -1,6 +1,6 @@
-# BoatId Backend - AWS App Runner Deployment
+# BoatId Backend - AWS Deployment
 
-This directory contains the FastAPI backend for the BoatId boat identification application, configured for deployment on AWS App Runner.
+This directory contains the FastAPI backend for the BoatId boat identification application, configured for deployment on AWS Fargate with an Application Load Balancer.
 
 ## Architecture
 
@@ -8,58 +8,84 @@ This directory contains the FastAPI backend for the BoatId boat identification a
 - **Database**: AWS RDS PostgreSQL (existing: farmzilla.c16uug8oqgmf.us-west-2.rds.amazonaws.com)
 - **Storage**: AWS S3 (existing: lsee-farmzilla-images)
 - **AI**: Anthropic Claude for boat identification
-- **Deployment**: AWS App Runner
+- **Deployment**: AWS ECS Fargate with ALB (via `deploy_fargate.py`)
+- **Auth**: JWT access tokens (30 min) + database-backed refresh tokens (30 days)
 
 ## Prerequisites
 
 1. AWS CLI configured with appropriate permissions
-2. GitHub account for code repository  
+2. Docker running locally
 3. Python boto3 library: `pip install boto3`
-4. **GitHub connection in AWS App Runner** (see troubleshooting if needed)
-5. Existing RDS and S3 resources (already configured)
+4. Existing RDS and S3 resources (already configured)
 
 ## Quick Deployment
 
 ### 1. Configure Secrets
 
 ```bash
-# Copy templates and fill in your values
-cp apprunner.yaml.template apprunner.yaml
+# Copy the template and fill in your values
+cp .env.example .env
+
+# Edit .env with your actual credentials
+# DO NOT COMMIT this file - it's excluded via .gitignore
+```
+
+Also configure IAM permissions:
+
+```bash
 cp iam-policy.json.template iam-policy.json
-
-# Edit both files with your actual credentials/account details
-# DO NOT COMMIT THESE FILES - they're excluded via .gitignore
+# Edit with your AWS account details
 ```
 
-### 2. Push Code to GitHub
+### 2. Initialize Database
+
+Before deploying, ensure the database schema is up to date (includes `users`, `boat_identifications`, and `refresh_tokens` tables):
 
 ```bash
-git init
-git add .
-git commit -m "Initial BoatId backend commit"
-git remote add origin https://github.com/yourusername/boatid-backend.git
-git branch -M main
-git push -u origin main
+cd backend/src
+python initialize_database.py
 ```
 
-**Note**: Only `apprunner-public.yaml` (safe config) is tracked. Secrets stay local in `apprunner.yaml`
+> **Warning**: This script drops and recreates all tables. For production, apply schema changes manually instead of re-running this script.
 
-### 3. Deploy with Python Script
+To add only the `refresh_tokens` table without resetting data, run this SQL against your RDS instance:
+
+```sql
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    revoked BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON refresh_tokens (user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens (token_hash);
+```
+
+### 3. Deploy to AWS Fargate
 
 ```bash
-python deploy.py https://github.com/yourusername/boatid-backend
+python backend/deploy_fargate.py
 ```
 
-That's it! The script will:
-- Create IAM roles and permissions
-- Deploy your FastAPI service to App Runner
-- Configure health checks and auto-scaling
-- Wait for deployment and provide your API URL
+This script will:
+- Create/reuse an ECR repository and push the Docker image
+- Create IAM execution and task roles
+- Register an ECS task definition with environment variables from `.env`
+- Set up VPC networking, security groups, and an Application Load Balancer
+- Create or update the ECS Fargate service with a rolling deployment
+- Wait for the service to stabilize and print the ALB URL
 
-Your service will be available at:
+### Redeploying After Code Changes
+
+To redeploy (e.g. after adding refresh token support):
+
+```bash
+python backend/deploy_fargate.py
 ```
-https://[random-id].us-west-2.awsapprunner.com
-```
+
+The script is idempotent — it rebuilds the Docker image, pushes to ECR, registers a new task definition, and triggers a rolling update on the existing service. No resources are recreated unnecessarily.
 
 Test endpoints:
 - `GET /` - Basic health check
@@ -67,33 +93,47 @@ Test endpoints:
 - `GET /health/detailed` - Detailed health with DB/S3 status
 - `POST /api/v1/boats/identify` - Boat identification
 
+## Auth Endpoints
+
+- `POST /auth/register` - Register a new user
+- `POST /auth/login` - Login (JSON body), returns `access_token` + `refresh_token`
+- `POST /auth/token` - Login (OAuth2 form data), returns `access_token` + `refresh_token`
+- `POST /auth/refresh` - Exchange a refresh token for new access + rotated refresh tokens
+- `POST /auth/logout` - Revoke a refresh token server-side
+
+### Persistent Login Flow
+
+1. On login, the backend issues a 30-minute access token and a 30-day refresh token
+2. The refresh token hash (SHA-256) is stored in the `refresh_tokens` database table
+3. The mobile app stores the refresh token in Android Keystore (via `react-native-keychain`)
+4. On app reopen, the frontend sends the refresh token to `POST /auth/refresh`
+5. The backend validates the token, revokes it, and issues a new access token + rotated refresh token
+6. On logout, the frontend calls `POST /auth/logout` to revoke the refresh token server-side
+
 ## Security Notes
 
-- `apprunner.yaml` contains API keys and credentials - excluded from git
-- `apprunner-public.yaml` contains build config only - safe to commit
-- `iam-policy.json` contains AWS account details - excluded from git
-- **Deployment approach**: Secrets are injected via API, not stored in repository
-- Use template files (`.template`) as starting points
+- `.env` contains API keys and credentials — excluded from git
+- `iam-policy.json` contains AWS account details — excluded from git
+- **Deployment approach**: Secrets are loaded from `.env` and injected into the ECS task definition via API
+- Use `.env.example` as a starting point
 - Never commit actual credentials, account IDs, or resource names
-- `.env` files are also excluded from git via `.gitignore`
 - Consider using AWS Secrets Manager for production deployments
 
 ## Configuration Files
 
-- `apprunner.yaml.template` - App Runner service configuration template (with secrets)
-- `apprunner-public.yaml` - Public build configuration (safe to commit)
-- `iam-policy.json.template` - IAM permissions template
-- `deploy.py` - Automated deployment script using boto3
-- `requirements.txt` - Python dependencies
-- `Dockerfile` - Container configuration
+- `.env.example` — Environment variable template (safe to commit)
+- `.env` — Actual secrets (gitignored)
+- `iam-policy.json` — IAM permissions (gitignored)
+- `deploy_fargate.py` — Automated Fargate deployment script
+- `Dockerfile` — Container configuration
+- `requirements.txt` — Python dependencies
 
 ## Environment Variables
 
 Environment variables are handled securely:
 
-- **Local secrets**: Stored in `apprunner.yaml` (gitignored)
-- **Deployment**: Script reads local config and injects via AWS API
-- **Repository**: Only contains `apprunner-public.yaml` with build instructions
+- **Local secrets**: Stored in `.env` (gitignored)
+- **Deployment**: `deploy_fargate.py` reads `.env` and injects vars into the ECS task definition
 - **Security**: Secrets never touch the git repository
 
 Variables include:
@@ -119,24 +159,27 @@ uvicorn main:app --reload
 
 ## Monitoring
 
-- **Logs**: Available in App Runner console
-- **Metrics**: CPU, memory, request metrics
-- **Health**: Use `/health/detailed` endpoint
+- **Logs**: CloudWatch log group `/ecs/boatid-backend`
+- **Metrics**: ECS service metrics in AWS Console (CPU, memory)
+- **Health**: Use `/health/detailed` endpoint via ALB URL
 
 ## Scaling
 
-App Runner automatically scales with cost optimization:
-- Min instances: 1 (lowest possible)
-- Max instances: 2 (cost-controlled)
-- Resources: 0.25 vCPU, 0.5GB RAM (minimum tier)
-- Auto-pause: Scales down during low traffic
+ECS Fargate service is configured with:
+- CPU: 0.5 vCPU
+- Memory: 1 GB
+- Desired count: 1 task
+- ALB distributes traffic across tasks
+- Scale by updating `desiredCount` in `deploy_fargate.py` or via AWS Console
 
-## Cost Estimation (Optimized)
+## Cost Estimation
 
-- **App Runner**: ~$7-15/month (minimal resources)
+- **Fargate**: ~$15-25/month (0.5 vCPU, 1 GB, 1 task)
+- **ALB**: ~$16-20/month
 - **RDS**: ~$15-20/month (existing)
 - **S3**: ~$1-5/month (existing)
-- **Total**: ~$23-40/month
+- **ECR**: ~$1/month
+- **Total**: ~$48-71/month
 
 
 ## Updating Your Service
@@ -144,52 +187,45 @@ App Runner automatically scales with cost optimization:
 To deploy updates:
 
 ```bash
-# Commit and push changes
-git add .
-git commit -m "Update boat identification"
-git push
-
-# App Runner will automatically redeploy from GitHub
-# Or redeploy manually with:
-python deploy.py https://github.com/yourusername/boatid-backend
+# Redeploy to Fargate (rebuilds image, pushes to ECR, rolling update)
+python backend/deploy_fargate.py
 ```
+
+The script detects the existing service and performs a rolling update — no downtime.
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **GitHub Connection Error** (`Authentication configuration is invalid`)
-   - Create GitHub connection first: AWS Console > App Runner > GitHub connections
-   - Click "Create connection" and authorize GitHub access
-   - PowerShell CLI: `aws apprunner create-connection --connection-name github-connection --provider-type GITHUB --region us-west-2`
-   - If you get "Connection name already exists" - that's good! Proceed with deployment
-   - Then authorize the connection in your GitHub account
+1. **Docker Build Errors**
+   - Ensure Docker is running: `docker info`
+   - Check `backend/Dockerfile` and `backend/requirements.txt`
 
 2. **Deployment Script Errors**
    - Ensure AWS CLI is configured: `aws configure`
-   - Check GitHub URL is accessible and contains apprunner.yaml
-   - Verify environment variables in .env file
+   - Verify `.env` file exists in the `backend/` directory
+   - Check IAM permissions in `iam-policy.json`
 
-2. **Database Connection Errors**
-   - Verify RDS security groups allow App Runner traffic
-   - Check connection string in apprunner.yaml
+3. **Database Connection Errors**
+   - Verify RDS security groups allow Fargate task traffic
+   - Check connection string vars in `.env`
 
-3. **S3 Access Denied**
-   - Ensure IAM permissions in iam-policy.json match your bucket
-   - Verify bucket name in apprunner.yaml
+4. **S3 Access Denied**
+   - Ensure IAM permissions in `iam-policy.json` match your bucket
+   - Verify `AWS_BUCKET_NAME` in `.env`
 
 ### Debug Commands
 
 ```bash
-# Check service status
-aws apprunner describe-service --service-arn [service-arn]
+# Check ECS service status
+aws ecs describe-services --cluster boatid-backend-cluster --services boatid-backend --region us-west-2
 
-# View logs
-aws logs tail /aws/apprunner/boatid-backend/application
+# View CloudWatch logs
+aws logs tail /ecs/boatid-backend --region us-west-2
+
+# Check running tasks
+aws ecs list-tasks --cluster boatid-backend-cluster --service-name boatid-backend --region us-west-2
+
+# Force a new deployment without code changes
+aws ecs update-service --cluster boatid-backend-cluster --service boatid-backend --force-new-deployment --region us-west-2
 ```
-
-## Security Notes
-
-- Environment variables contain sensitive data
-- `.env` files are excluded from git via `.gitignore`
-- Use AWS Secrets Manager for production secrets (optional upgrade)

@@ -7,7 +7,7 @@ Usage:
 Requires:
     - Docker running locally
     - AWS credentials configured (aws configure)
-    - backend/apprunner.yaml with env vars (reused for config)
+    - backend/.env with environment variables
     - backend/iam-policy.json for task role permissions
 """
 
@@ -44,22 +44,28 @@ def get_account_id():
 
 
 def load_env_vars():
-    """Load environment variables from backend/apprunner.yaml"""
-    import yaml
+    """Load environment variables from backend/.env file."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(script_dir, "apprunner.yaml")
+    env_path = os.path.join(script_dir, ".env")
 
-    if not os.path.exists(config_path):
-        logger.error(f"Config not found: {config_path}")
+    if not os.path.exists(env_path):
+        logger.error(f"Config not found: {env_path}")
+        logger.error("Copy .env.example to .env and fill in your values.")
         sys.exit(1)
 
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
     env_vars = {}
-    if "run" in config and "env" in config["run"]:
-        for item in config["run"]["env"]:
-            env_vars[item["name"]] = item["value"]
+    with open(env_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:
+                    env_vars[key] = value
+
     env_vars["PORT"] = str(CONTAINER_PORT)
     env_vars["AWS_DEFAULT_REGION"] = REGION
     return env_vars

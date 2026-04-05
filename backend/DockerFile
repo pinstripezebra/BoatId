@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ .
 
-# Expose port (App Runner will set PORT env var)
+# Expose port for ECS Fargate
 EXPOSE 8080
 
 # Run the application using PORT environment variable
