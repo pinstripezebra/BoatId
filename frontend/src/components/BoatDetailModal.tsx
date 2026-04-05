@@ -11,9 +11,15 @@ import {
 } from 'react-native';
 import type {BoatCardData} from './BoatCard';
 
+export interface DetailBoatData extends BoatCardData {
+  year?: string;
+  confidence?: string;
+  model?: string;
+}
+
 interface BoatDetailModalProps {
   visible: boolean;
-  boat: BoatCardData | null;
+  boat: DetailBoatData | null;
   onClose: () => void;
 }
 
@@ -50,10 +56,31 @@ const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose
                 <Text style={[styles.value, {color: textColor}]}>{boat.make || 'Unknown'}</Text>
               </View>
 
+              {boat.model && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.label, {color: subtextColor}]}>Model</Text>
+                  <Text style={[styles.value, {color: textColor}]}>{boat.model}</Text>
+                </View>
+              )}
+
               <View style={styles.detailRow}>
                 <Text style={[styles.label, {color: subtextColor}]}>Type</Text>
                 <Text style={[styles.value, {color: textColor}]}>{boat.type || 'Unknown'}</Text>
               </View>
+
+              {boat.year && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.label, {color: subtextColor}]}>Year</Text>
+                  <Text style={[styles.value, {color: textColor}]}>{boat.year}</Text>
+                </View>
+              )}
+
+              {boat.confidence && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.label, {color: subtextColor}]}>Confidence</Text>
+                  <Text style={[styles.value, {color: textColor}]}>{boat.confidence}</Text>
+                </View>
+              )}
             </View>
           </ScrollView>
 

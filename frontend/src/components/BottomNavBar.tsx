@@ -8,42 +8,54 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
+export type TabName = 'home' | 'search' | 'camera' | 'favorites' | 'profile';
+
 interface BottomNavBarProps {
   onCameraPress: () => void;
   isProcessing: boolean;
+  activeTab?: TabName;
+  onHomePress?: () => void;
+  onProfilePress?: () => void;
 }
 
 interface NavItemProps {
   icon: string;
   label: string;
   onPress?: () => void;
+  isActive?: boolean;
 }
 
-const NavItem: React.FC<NavItemProps & {textColor: string}> = ({
+const NavItem: React.FC<NavItemProps & {textColor: string; activeColor: string}> = ({
   icon,
   label,
   onPress,
   textColor,
+  activeColor,
+  isActive,
 }) => (
   <TouchableOpacity style={styles.navItem} onPress={onPress} activeOpacity={0.7}>
     <Text style={styles.navIcon}>{icon}</Text>
-    <Text style={[styles.navLabel, {color: textColor}]}>{label}</Text>
+    <Text style={[styles.navLabel, {color: isActive ? activeColor : textColor}]}>{label}</Text>
   </TouchableOpacity>
 );
 
 const BottomNavBar: React.FC<BottomNavBarProps> = ({
   onCameraPress,
   isProcessing,
+  activeTab = 'home',
+  onHomePress,
+  onProfilePress,
 }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const bgColor = isDarkMode ? '#1e1e1e' : '#ffffff';
   const textColor = isDarkMode ? '#aaaaaa' : '#666666';
   const borderColor = isDarkMode ? '#333333' : '#e0e0e0';
+  const activeColor = '#2196f3';
 
   return (
     <View style={[styles.container, {backgroundColor: bgColor, borderTopColor: borderColor}]}>
-      <NavItem icon="🏠" label="Home" textColor={textColor} />
-      <NavItem icon="🔍" label="Search" textColor={textColor} />
+      <NavItem icon="🏠" label="Home" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'home'} onPress={onHomePress} />
+      <NavItem icon="🔍" label="Search" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'search'} />
 
       <TouchableOpacity
         style={[styles.cameraButton, isProcessing && styles.cameraButtonDisabled]}
@@ -56,8 +68,8 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
         )}
       </TouchableOpacity>
 
-      <NavItem icon="⭐" label="Favorites" textColor={textColor} />
-      <NavItem icon="👤" label="Profile" textColor={textColor} />
+      <NavItem icon="⭐" label="Favorites" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'favorites'} />
+      <NavItem icon="👤" label="Profile" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'profile'} onPress={onProfilePress} />
     </View>
   );
 };

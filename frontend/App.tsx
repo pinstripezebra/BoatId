@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -22,11 +22,15 @@ import {
 import LoginScreen from './src/components/LoginScreen';
 import PreviousResultsModal from './src/components/PreviousResultsModal';
 import BoatDetailModal from './src/components/BoatDetailModal';
+import type { DetailBoatData } from './src/components/BoatDetailModal';
 import SearchBar from './src/components/SearchBar';
 import HorizontalBoatList from './src/components/HorizontalBoatList';
 import BottomNavBar from './src/components/BottomNavBar';
+import type { TabName } from './src/components/BottomNavBar';
+import ProfileScreen from './src/components/ProfileScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
+import { BoatApiService } from './src/services';
 import type { BoatCardData } from './src/components/BoatCard';
 
 const boatImages = {
@@ -60,7 +64,9 @@ function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPreviousResults, setShowPreviousResults] = useState(false);
-  const [selectedBoat, setSelectedBoat] = useState<BoatCardData | null>(null);
+  const [selectedBoat, setSelectedBoat] = useState<DetailBoatData | null>(null);
+  const [activeTab, setActiveTab] = useState<TabName>('home');
+  const [userBoats, setUserBoats] = useState<BoatCardData[]>([]);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -78,6 +84,31 @@ function App(): React.JSX.Element {
       setIsCheckingAuth(false);
     });
   }, []);
+
+  // Fetch user's boats when logged in
+  const loadUserBoats = useCallback(async () => {
+    try {
+      const data = await BoatApiService.getIdentifications(1, 10, { isBoat: true });
+      const mapped: BoatCardData[] = data.results.map(item => ({
+        id: item.id.toString(),
+        name: item.identification_data?.model
+          ? `${item.identification_data.make || ''} ${item.identification_data.model}`.trim()
+          : item.identification_data?.make || 'Unknown Boat',
+        make: item.identification_data?.make,
+        type: item.identification_data?.boat_type,
+        image: item.image_url ? { uri: item.image_url } : undefined,
+      }));
+      setUserBoats(mapped);
+    } catch (error) {
+      console.error('Failed to load user boats:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadUserBoats();
+    }
+  }, [isLoggedIn, loadUserBoats]);
 
   // Show loading while checking stored auth
   if (isCheckingAuth) {
@@ -136,37 +167,52 @@ ${details?.description || ''}`;
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={backgroundStyle.backgroundColor}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}
-        contentContainerStyle={styles.scrollContainer}>
-        
-        <View style={styles.headerContainer}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerTextGroup}>
-              <Text style={[styles.title, textStyle]}>⚓ BoatId</Text>
-              <Text style={[styles.subtitle, textStyle]}>
-                Boat Identification Made Simple
-              </Text>
+
+      {activeTab === 'profile' ? (
+        <ProfileScreen onViewAllBoats={() => setShowPreviousResults(true)} />
+      ) : (
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          style={backgroundStyle}
+          contentContainerStyle={styles.scrollContainer}>
+          
+          <View style={styles.headerContainer}>
+            <View style={styles.headerRow}>
+              <View style={styles.headerTextGroup}>
+                <Text style={[styles.title, textStyle]}>⚓ BoatId</Text>
+                <Text style={[styles.subtitle, textStyle]}>
+                  Boat Identification Made Simple
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleLogout} style={styles.signOutButton}>
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={handleLogout} style={styles.signOutButton}>
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
+            {user && (
+              <Text style={[styles.userLabel, textStyle]}>
+                Signed in as {user.username}
+              </Text>
+            )}
           </View>
-          {user && (
-            <Text style={[styles.userLabel, textStyle]}>
-              Signed in as {user.username}
-            </Text>
+
+          <SearchBar />
+
+          <HorizontalBoatList title="Popular Boats" boats={POPULAR_BOATS} onBoatPress={setSelectedBoat} />
+          <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} />
+
+          {userBoats.length > 0 && (
+            <HorizontalBoatList title="Your Boats" boats={userBoats} onBoatPress={setSelectedBoat} />
           )}
-        </View>
+        </ScrollView>
+      )}
 
-        <SearchBar />
-
-        <HorizontalBoatList title="Popular Boats" boats={POPULAR_BOATS} onBoatPress={setSelectedBoat} />
-        <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} />
-      </ScrollView>
-
-      <BottomNavBar onCameraPress={handleCameraPress} isProcessing={isProcessing} />
+      <BottomNavBar
+        onCameraPress={handleCameraPress}
+        isProcessing={isProcessing}
+        activeTab={activeTab}
+        onHomePress={() => setActiveTab('home')}
+        onProfilePress={() => setActiveTab('profile')}
+      />
 
       <PreviousResultsModal
         visible={showPreviousResults}
