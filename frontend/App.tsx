@@ -12,18 +12,38 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   useColorScheme,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 
-// Import our custom components
-import {WelcomeCard, FeatureItem, Button} from './src/components';
 import LoginScreen from './src/components/LoginScreen';
 import PreviousResultsModal from './src/components/PreviousResultsModal';
+import SearchBar from './src/components/SearchBar';
+import HorizontalBoatList from './src/components/HorizontalBoatList';
+import BottomNavBar from './src/components/BottomNavBar';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
+import type { BoatCardData } from './src/components/BoatCard';
+
+const POPULAR_BOATS: BoatCardData[] = [
+  {id: 'p1', name: 'Sea Ray Sundancer', make: 'Sea Ray', type: 'Cruiser'},
+  {id: 'p2', name: 'Boston Whaler Montauk', make: 'Boston Whaler', type: 'Center Console'},
+  {id: 'p3', name: 'Bayliner VR5', make: 'Bayliner', type: 'Bowrider'},
+  {id: 'p4', name: 'Yamaha 252S', make: 'Yamaha', type: 'Jet Boat'},
+  {id: 'p5', name: 'Mastercraft X24', make: 'Mastercraft', type: 'Wakeboard'},
+  {id: 'p6', name: 'Grady-White Freedom', make: 'Grady-White', type: 'Dual Console'},
+];
+
+const NEARBY_BOATS: BoatCardData[] = [
+  {id: 'n1', name: 'Chaparral 267 SSX', make: 'Chaparral', type: 'Bowrider'},
+  {id: 'n2', name: 'Tracker Pro 170', make: 'Tracker', type: 'Bass Boat'},
+  {id: 'n3', name: 'Cobalt R8', make: 'Cobalt', type: 'Bowrider'},
+  {id: 'n4', name: 'Ranger Z520L', make: 'Ranger', type: 'Bass Boat'},
+  {id: 'n5', name: 'Malibu Wakesetter', make: 'Malibu', type: 'Wakeboard'},
+];
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -112,10 +132,17 @@ ${details?.description || ''}`;
         contentContainerStyle={styles.scrollContainer}>
         
         <View style={styles.headerContainer}>
-          <Text style={[styles.title, textStyle]}>⚓ BoatId</Text>
-          <Text style={[styles.subtitle, textStyle]}>
-            Boat Identification Made Simple
-          </Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextGroup}>
+              <Text style={[styles.title, textStyle]}>⚓ BoatId</Text>
+              <Text style={[styles.subtitle, textStyle]}>
+                Boat Identification Made Simple
+              </Text>
+            </View>
+            <TouchableOpacity onPress={handleLogout} style={styles.signOutButton}>
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
           {user && (
             <Text style={[styles.userLabel, textStyle]}>
               Signed in as {user.username}
@@ -123,61 +150,13 @@ ${details?.description || ''}`;
           )}
         </View>
 
-        <View style={styles.contentContainer}>
-          <WelcomeCard
-            title="Welcome to BoatId! 🚤"
-            description="Your go-to app for identifying and cataloging boats. Take photos, identify vessels, and build your maritime database."
-          />
+        <SearchBar />
 
-          {isProcessing && (
-            <View style={styles.processingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={[styles.processingText, textStyle]}>
-                Analyzing boat image...
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.featuresContainer}>
-            <Text style={[styles.featuresTitle, textStyle]}>
-              Features:
-            </Text>
-            
-            <FeatureItem
-              icon="📸"
-              title={isProcessing ? "Processing..." : "Identify Boat"}
-              onPress={handleCameraPress}
-              disabled={isProcessing}
-            />
-
-            <FeatureItem
-              icon="📋"
-              title="Previous Results"
-              onPress={() => setShowPreviousResults(true)}
-            />
-
-            <FeatureItem
-              icon="🚪"
-              title="Sign Out"
-              onPress={handleLogout}
-            />
-          </View>
-
-          <View style={styles.buttonContainer}>
-            <Button
-              title={isProcessing ? "Processing..." : "Capture & Identify Boat"}
-              onPress={handleCameraPress}
-              variant="primary"
-              disabled={isProcessing}
-            />
-            <Button
-              title="Previous Results"
-              onPress={() => setShowPreviousResults(true)}
-              variant="secondary"
-            />
-          </View>
-        </View>
+        <HorizontalBoatList title="Popular Boats" boats={POPULAR_BOATS} />
+        <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} />
       </ScrollView>
+
+      <BottomNavBar onCameraPress={handleCameraPress} isProcessing={isProcessing} />
 
       <PreviousResultsModal
         visible={showPreviousResults}
@@ -191,51 +170,45 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingVertical: 20,
   },
   headerContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerTextGroup: {
+    flex: 1,
   },
   title: {
-    fontSize: 36,
+    fontSize: 30,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontStyle: 'italic',
     opacity: 0.7,
   },
   userLabel: {
-    marginTop: 8,
-    fontSize: 14,
+    marginTop: 6,
+    fontSize: 13,
     opacity: 0.6,
   },
-  contentContainer: {
-    flex: 1,
+  signOutButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    marginTop: 4,
   },
-  featuresContainer: {
-    marginBottom: 40,
-  },
-  featuresTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  buttonContainer: {
-    marginTop: 20,
-  },
-  processingContainer: {
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  processingText: {
-    marginTop: 10,
-    fontSize: 16,
+  signOutText: {
+    color: '#f44336',
+    fontSize: 13,
+    fontWeight: '500',
   },
   centered: {
     justifyContent: 'center',
