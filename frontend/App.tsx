@@ -28,6 +28,7 @@ import HorizontalBoatList from './src/components/HorizontalBoatList';
 import BottomNavBar from './src/components/BottomNavBar';
 import type { TabName } from './src/components/BottomNavBar';
 import ProfileScreen from './src/components/ProfileScreen';
+import MapScreen from './src/components/MapScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { BoatApiService } from './src/services';
@@ -170,6 +171,8 @@ ${details?.description || ''}`;
 
       {activeTab === 'profile' ? (
         <ProfileScreen onViewAllBoats={() => setShowPreviousResults(true)} />
+      ) : activeTab === 'map' ? (
+        <MapScreen onBoatPress={setSelectedBoat} />
       ) : (
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -211,6 +214,7 @@ ${details?.description || ''}`;
         isProcessing={isProcessing}
         activeTab={activeTab}
         onHomePress={() => setActiveTab('home')}
+        onMapPress={() => setActiveTab('map')}
         onProfilePress={() => setActiveTab('profile')}
       />
 

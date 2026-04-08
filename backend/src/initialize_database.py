@@ -62,6 +62,8 @@ boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_i
     model VARCHAR(100),
     boat_type VARCHAR(50),
     year_estimate VARCHAR(20),
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )"""
 
@@ -128,6 +130,7 @@ index_queries = [
     "CREATE INDEX IF NOT EXISTS idx_boat_type ON boat_identifications (boat_type);",
     "CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON refresh_tokens (user_id);",
     "CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens (token_hash);",
+    "CREATE INDEX IF NOT EXISTS idx_boat_location ON boat_identifications (latitude, longitude);",
 ]
 
 for index_query in index_queries:
@@ -138,6 +141,28 @@ for index_query in index_queries:
 
 # Populate users table
 engine.populate_table_dynamic(users, 'users')
+
+import random
+
+# Coastal US coordinate ranges for realistic test data
+coastal_locations = [
+    (25.76, -80.19),   # Miami, FL
+    (32.71, -117.16),  # San Diego, CA
+    (37.00, -76.00),   # Chesapeake Bay, VA
+    (27.77, -82.64),   # Tampa Bay, FL
+    (30.33, -81.66),   # Jacksonville, FL
+    (29.95, -90.07),   # New Orleans, LA
+    (33.77, -118.19),  # Long Beach, CA
+    (47.61, -122.34),  # Seattle, WA
+]
+
+def random_coastal_coord():
+    base_lat, base_lng = random.choice(coastal_locations)
+    return round(base_lat + random.uniform(-0.1, 0.1), 6), round(base_lng + random.uniform(-0.1, 0.1), 6)
+
+lat1, lng1 = random_coastal_coord()
+lat2, lng2 = random_coastal_coord()
+lat3, lng3 = random_coastal_coord()
 
 # Create sample boat identification data that matches new schema
 sample_boat_data = pd.DataFrame([
@@ -150,7 +175,9 @@ sample_boat_data = pd.DataFrame([
         'make': 'Beneteau',
         'model': 'Oceanis 40.1',
         'boat_type': 'sailboat',
-        'year_estimate': '2020'
+        'year_estimate': '2020',
+        'latitude': lat1,
+        'longitude': lng1
     },
     {
         'image_filename': 'sample_motorboat.jpg',
@@ -161,7 +188,9 @@ sample_boat_data = pd.DataFrame([
         'make': 'Sea Ray',
         'model': None,
         'boat_type': 'motorboat',
-        'year_estimate': 'unknown'
+        'year_estimate': 'unknown',
+        'latitude': lat2,
+        'longitude': lng2
     },
     {
         'image_filename': 'not_a_boat.jpg',
@@ -172,7 +201,9 @@ sample_boat_data = pd.DataFrame([
         'make': None,
         'model': None,
         'boat_type': None,
-        'year_estimate': None
+        'year_estimate': None,
+        'latitude': lat3,
+        'longitude': lng3
     }
 ])
 

@@ -8,13 +8,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-export type TabName = 'home' | 'search' | 'camera' | 'favorites' | 'profile';
+export type TabName = 'home' | 'search' | 'camera' | 'map' | 'profile';
 
 interface BottomNavBarProps {
   onCameraPress: () => void;
   isProcessing: boolean;
   activeTab?: TabName;
   onHomePress?: () => void;
+  onMapPress?: () => void;
   onProfilePress?: () => void;
 }
 
@@ -44,6 +45,7 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
   isProcessing,
   activeTab = 'home',
   onHomePress,
+  onMapPress,
   onProfilePress,
 }) => {
   const isDarkMode = useColorScheme() === 'dark';
@@ -68,7 +70,7 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
         )}
       </TouchableOpacity>
 
-      <NavItem icon="⭐" label="Favorites" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'favorites'} />
+      <NavItem icon="🗺️" label="Map" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'map'} onPress={onMapPress} />
       <NavItem icon="👤" label="Profile" textColor={textColor} activeColor={activeColor} isActive={activeTab === 'profile'} onPress={onProfilePress} />
     </View>
   );

@@ -34,7 +34,9 @@ class BoatStorageService:
         image_filename: str,
         image_data: bytes,
         result: BoatIdentificationResult,
-        user_id: Optional[UUID] = None
+        user_id: Optional[UUID] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None
     ) -> int:
         """Store image in S3 and identification data in RDS"""
         
@@ -84,7 +86,9 @@ class BoatStorageService:
                 make=result.make,
                 model=result.model,
                 boat_type=result.boat_type,
-                year_estimate=result.year
+                year_estimate=result.year,
+                latitude=latitude,
+                longitude=longitude
             )
             
             self.db.add(db_record)

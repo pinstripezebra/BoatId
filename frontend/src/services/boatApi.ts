@@ -61,6 +61,24 @@ export interface SearchResponse {
   count: number;
 }
 
+export interface NearbyBoat {
+  id: number;
+  latitude: number;
+  longitude: number;
+  make: string | null;
+  model: string | null;
+  boat_type: string | null;
+  image_url: string;
+  created_at: string | null;
+}
+
+export interface NearbyBoatsResponse {
+  results: NearbyBoat[];
+  count: number;
+  center: { latitude: number; longitude: number };
+  radius_km: number;
+}
+
 export class BoatApiService {
   /**
    * Create FormData for file upload
@@ -68,7 +86,9 @@ export class BoatApiService {
   private static createFormData(
     imageUri: string,
     requestedFields: string[],
-    storeResults: boolean
+    storeResults: boolean,
+    latitude?: number,
+    longitude?: number
   ): FormData {
     const formData = new FormData();
     
@@ -85,6 +105,8 @@ export class BoatApiService {
     formData.append('image', file);
     formData.append('requested_fields', requestedFields.join(','));
     formData.append('store_results', storeResults.toString());
+    if (latitude !== undefined) formData.append('latitude', latitude.toString());
+    if (longitude !== undefined) formData.append('longitude', longitude.toString());
 
     return formData;
   }
@@ -95,9 +117,11 @@ export class BoatApiService {
   static async identifyBoat(
     imageUri: string,
     requestedFields: string[] = ['make', 'model', 'description', 'boat_type'],
-    storeResults: boolean = true
+    storeResults: boolean = true,
+    latitude?: number,
+    longitude?: number
   ): Promise<BoatIdentificationResponse> {
-    const formData = this.createFormData(imageUri, requestedFields, storeResults);
+    const formData = this.createFormData(imageUri, requestedFields, storeResults, latitude, longitude);
     return await HttpClient.uploadFile<BoatIdentificationResponse>('api/v1/boats/identify', formData);
   }
 
@@ -147,6 +171,22 @@ export class BoatApiService {
    */
   static async getAvailableFields() {
     return await HttpClient.get('api/v1/boats/identification-fields');
+  }
+
+  /**
+   * Get nearby boat identifications within a radius
+   */
+  static async getNearbyBoats(
+    latitude: number,
+    longitude: number,
+    radiusKm: number = 50
+  ): Promise<NearbyBoatsResponse> {
+    const queryParams = new URLSearchParams({
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+      radius_km: radiusKm.toString(),
+    });
+    return await HttpClient.get<NearbyBoatsResponse>(`api/v1/boats/nearby?${queryParams.toString()}`);
   }
 }
 

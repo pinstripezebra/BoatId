@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Index, Integer, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Index, Integer, ForeignKey, Float
 from utils.database import Base  # ← Importing shared base from utils.database
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
@@ -22,6 +22,10 @@ class BoatIdentification(Base):
     boat_type = Column(String(50), index=True)
     year_estimate = Column(String(20), index=True)
     
+    # Location data
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Composite indexes for common queries
@@ -29,6 +33,7 @@ class BoatIdentification(Base):
         Index('idx_boat_make_model', 'make', 'model'),
         Index('idx_boat_type_confidence', 'boat_type', 'confidence'),
         Index('idx_created_boat', 'created_at', 'is_boat'),
+        Index('idx_boat_location', 'latitude', 'longitude'),
     )
     
     def __repr__(self):

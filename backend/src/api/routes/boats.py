@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func, and_
 from typing import Optional, List, Dict, Any
 import json
 import os
@@ -40,6 +41,8 @@ async def identify_boat_from_image(
     requested_fields: Optional[str] = Form(['make', 'model', 'description', 'year', 'length', 
                              'boat_type', 'hull_material', 'features'], description="Comma-separated list of fields to return"),
     store_results: bool = Form(True, description="Whether to store results in database"),
+    latitude: Optional[float] = Form(None, description="Latitude of where the photo was taken"),
+    longitude: Optional[float] = Form(None, description="Longitude of where the photo was taken"),
     identifier: AnthropicBoatIdentifier = Depends(get_boat_identifier),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
@@ -89,7 +92,9 @@ async def identify_boat_from_image(
                 image_filename=image.filename or "boat_image.jpg",
                 image_data=image_data,
                 result=result,
-                user_id=current_user.id if current_user else None
+                user_id=current_user.id if current_user else None,
+                latitude=latitude,
+                longitude=longitude
             )
         
         # Build response
@@ -353,3 +358,65 @@ async def get_boat_image(
     Returns the image directly for display in browser or download.
     """
     return get_boat_image_from_s3(str(identification_id), db)
+
+
+@router.get("/nearby")
+async def get_nearby_boats(
+    latitude: float = Query(..., description="Center latitude"),
+    longitude: float = Query(..., description="Center longitude"),
+    radius_km: float = Query(50, description="Search radius in kilometers"),
+    db: Session = Depends(get_db)
+):
+    """Get boat identifications within a given radius of a location."""
+    
+    # Approximate bounding box filter (1 degree lat ≈ 111 km)
+    lat_delta = radius_km / 111.0
+    lng_delta = radius_km / (111.0 * max(abs(func.cos(func.radians(latitude))), 0.01))
+    
+    # For the Python-side bounding box we use a simple float calculation
+    import math
+    lng_delta_val = radius_km / (111.0 * max(abs(math.cos(math.radians(latitude))), 0.01))
+    
+    results = db.query(BoatIdentification).filter(
+        and_(
+            BoatIdentification.is_boat == True,
+            BoatIdentification.latitude.isnot(None),
+            BoatIdentification.longitude.isnot(None),
+            BoatIdentification.latitude.between(latitude - lat_delta, latitude + lat_delta),
+            BoatIdentification.longitude.between(longitude - lng_delta_val, longitude + lng_delta_val),
+        )
+    ).order_by(BoatIdentification.created_at.desc()).limit(200).all()
+    
+    storage_service = BoatStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "boatid-images"
+    )
+    
+    boats = []
+    for record in results:
+        try:
+            image_url = storage_service.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': storage_service.bucket, 'Key': record.s3_image_key},
+                ExpiresIn=3600
+            )
+        except Exception:
+            image_url = f"/api/v1/boats/identifications/{record.id}/image"
+        
+        boats.append({
+            'id': record.id,
+            'latitude': record.latitude,
+            'longitude': record.longitude,
+            'make': record.make,
+            'model': record.model,
+            'boat_type': record.boat_type,
+            'image_url': image_url,
+            'created_at': record.created_at.isoformat() if record.created_at else None,
+        })
+    
+    return {
+        "results": boats,
+        "count": len(boats),
+        "center": {"latitude": latitude, "longitude": longitude},
+        "radius_km": radius_km
+    }

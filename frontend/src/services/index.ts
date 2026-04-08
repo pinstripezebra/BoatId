@@ -9,4 +9,6 @@ export type {
   BoatIdentificationResponse,
   BoatIdentificationListResponse,
   SearchResponse,
+  NearbyBoat,
+  NearbyBoatsResponse,
 } from './boatApi';
