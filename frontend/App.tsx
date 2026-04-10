@@ -63,7 +63,6 @@ function App(): React.JSX.Element {
   const [userBoats, setUserBoats] = useState<BoatCardData[]>([]);
   const [popularBoats, setPopularBoats] = useState<BoatCardData[]>([]);
   const [likedBoatIds, setLikedBoatIds] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -167,11 +166,6 @@ function App(): React.JSX.Element {
 
   const isBoatLiked = useCallback((id: string) => likedBoatIds.has(id), [likedBoatIds]);
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    setActiveTab('search');
-  }, []);
-
   useEffect(() => {
     if (isLoggedIn) {
       loadUserBoats();
@@ -242,9 +236,8 @@ ${details?.description || ''}`;
         <ProfileScreen />
       ) : activeTab === 'map' ? (
         <MapScreen onBoatPress={setSelectedBoat} />
-      ) : activeTab === 'search' && searchQuery ? (
+      ) : activeTab === 'search' ? (
         <SearchResultsScreen
-          query={searchQuery}
           onBack={() => setActiveTab('home')}
           onBoatPress={setSelectedBoat}
           isLiked={isBoatLiked}
@@ -275,7 +268,7 @@ ${details?.description || ''}`;
             )}
           </View>
 
-          <SearchBar onSearch={handleSearch} />
+          <SearchBar onPress={() => setActiveTab('search')} />
 
           <HorizontalBoatList title="Popular Boats" boats={popularBoats} onBoatPress={setSelectedBoat} maxItems={5} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
           <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
