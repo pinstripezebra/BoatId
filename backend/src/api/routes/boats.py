@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import and_
 from typing import Optional, List, Dict, Any
 import json
 import os
@@ -362,6 +362,7 @@ async def get_boat_image(
 
 @router.get("/nearby")
 async def get_nearby_boats(
+    request: Request,
     latitude: float = Query(..., description="Center latitude"),
     longitude: float = Query(..., description="Center longitude"),
     radius_km: float = Query(50, description="Search radius in kilometers"),
@@ -370,12 +371,9 @@ async def get_nearby_boats(
     """Get boat identifications within a given radius of a location."""
     
     # Approximate bounding box filter (1 degree lat ≈ 111 km)
-    lat_delta = radius_km / 111.0
-    lng_delta = radius_km / (111.0 * max(abs(func.cos(func.radians(latitude))), 0.01))
-    
-    # For the Python-side bounding box we use a simple float calculation
     import math
-    lng_delta_val = radius_km / (111.0 * max(abs(math.cos(math.radians(latitude))), 0.01))
+    lat_delta = radius_km / 111.0
+    lng_delta = radius_km / (111.0 * max(abs(math.cos(math.radians(latitude))), 0.01))
     
     results = db.query(BoatIdentification).filter(
         and_(
@@ -383,7 +381,7 @@ async def get_nearby_boats(
             BoatIdentification.latitude.isnot(None),
             BoatIdentification.longitude.isnot(None),
             BoatIdentification.latitude.between(latitude - lat_delta, latitude + lat_delta),
-            BoatIdentification.longitude.between(longitude - lng_delta_val, longitude + lng_delta_val),
+            BoatIdentification.longitude.between(longitude - lng_delta, longitude + lng_delta),
         )
     ).order_by(BoatIdentification.created_at.desc()).limit(200).all()
     
@@ -401,7 +399,8 @@ async def get_nearby_boats(
                 ExpiresIn=3600
             )
         except Exception:
-            image_url = f"/api/v1/boats/identifications/{record.id}/image"
+            base_url = str(request.base_url).rstrip('/')
+            image_url = f"{base_url}/api/v1/boats/identifications/{record.id}/image"
         
         boats.append({
             'id': record.id,

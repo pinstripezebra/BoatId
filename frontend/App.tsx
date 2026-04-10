@@ -5,8 +5,9 @@
  * @format
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  AppState,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -85,6 +86,21 @@ function App(): React.JSX.Element {
       setIsCheckingAuth(false);
     });
   }, []);
+
+  // Proactively refresh the access token when the app returns from background
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active' && isLoggedIn) {
+        AuthService.refresh().catch(() => {
+          // Refresh failed — token may be revoked; force re-login
+          setIsLoggedIn(false);
+        });
+      }
+      appState.current = nextAppState;
+    });
+    return () => subscription.remove();
+  }, [isLoggedIn]);
 
   // Fetch user's boats when logged in
   const loadUserBoats = useCallback(async () => {

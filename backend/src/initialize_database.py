@@ -163,12 +163,34 @@ def random_coastal_coord():
 lat1, lng1 = random_coastal_coord()
 lat2, lng2 = random_coastal_coord()
 lat3, lng3 = random_coastal_coord()
+lat4, lng4 = random_coastal_coord()
+lat5, lng5 = random_coastal_coord()
 
-# Create sample boat identification data that matches new schema
+# West coast specific locations for boats 6-15
+west_coast_locations = [
+    (48.54, -123.02),  # San Juan Islands, WA
+    (47.65, -122.45),  # Puget Sound, WA
+    (45.60, -123.96),  # Oregon Coast
+    (43.35, -124.22),  # Coos Bay, OR
+    (40.80, -124.16),  # Humboldt Bay, CA
+    (37.82, -122.48),  # San Francisco Bay, CA
+    (36.62, -121.90),  # Monterey Bay, CA
+    (34.41, -119.69),  # Santa Barbara, CA
+    (33.86, -118.40),  # Marina del Rey, CA
+    (32.72, -117.17),  # San Diego Bay, CA
+]
+
+def west_coast_coord(idx):
+    base_lat, base_lng = west_coast_locations[idx]
+    return round(base_lat + random.uniform(-0.05, 0.05), 6), round(base_lng + random.uniform(-0.05, 0.05), 6)
+
+wc_coords = [west_coast_coord(i) for i in range(10)]
+
+# Create sample boat identification data using actual images uploaded to S3
 sample_boat_data = pd.DataFrame([
     {
-        'image_filename': 'sample_sailboat.jpg',
-        's3_image_key': 'boat-images/2024/01/01/sample1.jpg',
+        'image_filename': 'boat1.png',
+        's3_image_key': 'boat-images/boat1.png',
         'is_boat': True,
         'confidence': 'high',
         'identification_data': '{"make": "Beneteau", "model": "Oceanis 40.1", "description": "White fiberglass sailboat with blue trim", "boat_type": "sailboat", "confidence": "high", "length": "40", "features": ["roller furling", "wheel steering", "bimini top"]}',
@@ -180,30 +202,186 @@ sample_boat_data = pd.DataFrame([
         'longitude': lng1
     },
     {
-        'image_filename': 'sample_motorboat.jpg',
-        's3_image_key': 'boat-images/2024/01/01/sample2.jpg',
+        'image_filename': 'boat2.png',
+        's3_image_key': 'boat-images/boat2.png',
         'is_boat': True,
         'confidence': 'medium',
-        'identification_data': '{"make": "Sea Ray", "model": "unknown", "description": "White powerboat with hardtop", "boat_type": "motorboat", "confidence": "medium", "length": "30", "features": ["hardtop", "outriggers"]}',
+        'identification_data': '{"make": "Sea Ray", "model": "Sundancer 350", "description": "White powerboat with hardtop", "boat_type": "motorboat", "confidence": "medium", "length": "35", "features": ["hardtop", "outriggers"]}',
         'make': 'Sea Ray',
-        'model': None,
+        'model': 'Sundancer 350',
         'boat_type': 'motorboat',
-        'year_estimate': 'unknown',
+        'year_estimate': '2019',
         'latitude': lat2,
         'longitude': lng2
     },
     {
-        'image_filename': 'not_a_boat.jpg',
-        's3_image_key': 'boat-images/2024/01/01/sample3.jpg',
-        'is_boat': False,
+        'image_filename': 'boat3.png',
+        's3_image_key': 'boat-images/boat3.png',
+        'is_boat': True,
         'confidence': 'high',
-        'identification_data': '{"is_boat": false, "confidence": "high", "description": "This appears to be a car, not a boat"}',
-        'make': None,
-        'model': None,
-        'boat_type': None,
-        'year_estimate': None,
+        'identification_data': '{"make": "Boston Whaler", "model": "Montauk 170", "description": "Classic center console fishing boat", "boat_type": "fishing boat", "confidence": "high", "length": "17", "features": ["center console", "rod holders", "live well"]}',
+        'make': 'Boston Whaler',
+        'model': 'Montauk 170',
+        'boat_type': 'fishing boat',
+        'year_estimate': '2021',
         'latitude': lat3,
         'longitude': lng3
+    },
+    {
+        'image_filename': 'boat4.png',
+        's3_image_key': 'boat-images/boat4.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Yamaha", "model": "252S", "description": "Sport jet boat with twin engines", "boat_type": "jet boat", "confidence": "high", "length": "25", "features": ["twin jet drives", "wakeboard tower", "swim platform"]}',
+        'make': 'Yamaha',
+        'model': '252S',
+        'boat_type': 'jet boat',
+        'year_estimate': '2022',
+        'latitude': lat4,
+        'longitude': lng4
+    },
+    {
+        'image_filename': 'boat5.png',
+        's3_image_key': 'boat-images/boat5.png',
+        'is_boat': True,
+        'confidence': 'medium',
+        'identification_data': '{"make": "Mastercraft", "model": "X24", "description": "Premium wakeboard and surf boat", "boat_type": "wakeboard boat", "confidence": "medium", "length": "24", "features": ["surf system", "tower speakers", "ballast tanks"]}',
+        'make': 'Mastercraft',
+        'model': 'X24',
+        'boat_type': 'wakeboard boat',
+        'year_estimate': '2023',
+        'latitude': lat5,
+        'longitude': lng5
+    },
+    {
+        'image_filename': 'boat6.png',
+        's3_image_key': 'boat-images/boat6.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Catalina", "model": "355", "description": "Classic cruising sailboat with roller furling", "boat_type": "sailboat", "confidence": "high", "length": "35", "features": ["roller furling", "dodger", "autopilot"]}',
+        'make': 'Catalina',
+        'model': '355',
+        'boat_type': 'sailboat',
+        'year_estimate': '2018',
+        'latitude': wc_coords[0][0],
+        'longitude': wc_coords[0][1]
+    },
+    {
+        'image_filename': 'boat7.png',
+        's3_image_key': 'boat-images/boat7.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Grady-White", "model": "Freedom 271", "description": "Dual console fishing boat with T-top", "boat_type": "fishing boat", "confidence": "high", "length": "27", "features": ["T-top", "live well", "rod holders", "fish boxes"]}',
+        'make': 'Grady-White',
+        'model': 'Freedom 271',
+        'boat_type': 'fishing boat',
+        'year_estimate': '2021',
+        'latitude': wc_coords[1][0],
+        'longitude': wc_coords[1][1]
+    },
+    {
+        'image_filename': 'boat8.png',
+        's3_image_key': 'boat-images/boat8.png',
+        'is_boat': True,
+        'confidence': 'medium',
+        'identification_data': '{"make": "Chaparral", "model": "267 SSX", "description": "Sport bowrider with extended swim platform", "boat_type": "bowrider", "confidence": "medium", "length": "27", "features": ["swim platform", "wakeboard tower", "snap-in carpet"]}',
+        'make': 'Chaparral',
+        'model': '267 SSX',
+        'boat_type': 'bowrider',
+        'year_estimate': '2020',
+        'latitude': wc_coords[2][0],
+        'longitude': wc_coords[2][1]
+    },
+    {
+        'image_filename': 'boat9.png',
+        's3_image_key': 'boat-images/boat9.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Ranger", "model": "Z521L", "description": "High-performance bass fishing boat", "boat_type": "bass boat", "confidence": "high", "length": "21", "features": ["trolling motor", "fish finder", "rod storage", "live well"]}',
+        'make': 'Ranger',
+        'model': 'Z521L',
+        'boat_type': 'bass boat',
+        'year_estimate': '2022',
+        'latitude': wc_coords[3][0],
+        'longitude': wc_coords[3][1]
+    },
+    {
+        'image_filename': 'boat10.png',
+        's3_image_key': 'boat-images/boat10.png',
+        'is_boat': True,
+        'confidence': 'medium',
+        'identification_data': '{"make": "Malibu", "model": "23 LSV", "description": "Wakeboard and surf boat with ballast system", "boat_type": "wakeboard boat", "confidence": "medium", "length": "23", "features": ["surf gate", "tower", "ballast system", "touchscreen dash"]}',
+        'make': 'Malibu',
+        'model': '23 LSV',
+        'boat_type': 'wakeboard boat',
+        'year_estimate': '2023',
+        'latitude': wc_coords[4][0],
+        'longitude': wc_coords[4][1]
+    },
+    {
+        'image_filename': 'boat11.png',
+        's3_image_key': 'boat-images/boat11.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Hatteras", "model": "GT54", "description": "Luxury sportfishing yacht with flybridge", "boat_type": "sportfish yacht", "confidence": "high", "length": "54", "features": ["flybridge", "fighting chair", "tuna tower", "air conditioning"]}',
+        'make': 'Hatteras',
+        'model': 'GT54',
+        'boat_type': 'sportfish yacht',
+        'year_estimate': '2019',
+        'latitude': wc_coords[5][0],
+        'longitude': wc_coords[5][1]
+    },
+    {
+        'image_filename': 'boat12.png',
+        's3_image_key': 'boat-images/boat12.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Hobie", "model": "Cat 16", "description": "Classic racing catamaran with colorful sails", "boat_type": "catamaran", "confidence": "high", "length": "16", "features": ["trampoline deck", "jib sail", "rotating mast"]}',
+        'make': 'Hobie',
+        'model': 'Cat 16',
+        'boat_type': 'catamaran',
+        'year_estimate': '2017',
+        'latitude': wc_coords[6][0],
+        'longitude': wc_coords[6][1]
+    },
+    {
+        'image_filename': 'boat13.png',
+        's3_image_key': 'boat-images/boat13.png',
+        'is_boat': True,
+        'confidence': 'medium',
+        'identification_data': '{"make": "Chris-Craft", "model": "Launch 30", "description": "Heritage-style mahogany cruiser", "boat_type": "cruiser", "confidence": "medium", "length": "30", "features": ["teak swim platform", "heritage styling", "cabin berth"]}',
+        'make': 'Chris-Craft',
+        'model': 'Launch 30',
+        'boat_type': 'cruiser',
+        'year_estimate': '2021',
+        'latitude': wc_coords[7][0],
+        'longitude': wc_coords[7][1]
+    },
+    {
+        'image_filename': 'boat14.png',
+        's3_image_key': 'boat-images/boat14.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Fountain", "model": "38CC", "description": "Offshore center console with triple outboards", "boat_type": "center console", "confidence": "high", "length": "38", "features": ["triple outboards", "T-top", "leaning post", "insulated fish boxes"]}',
+        'make': 'Fountain',
+        'model': '38CC',
+        'boat_type': 'center console',
+        'year_estimate': '2020',
+        'latitude': wc_coords[8][0],
+        'longitude': wc_coords[8][1]
+    },
+    {
+        'image_filename': 'boat15.png',
+        's3_image_key': 'boat-images/boat15.png',
+        'is_boat': True,
+        'confidence': 'high',
+        'identification_data': '{"make": "Sunseeker", "model": "Predator 50", "description": "Luxury performance motor yacht", "boat_type": "motor yacht", "confidence": "high", "length": "50", "features": ["hardtop", "bow sunpad", "hydraulic platform", "air conditioning"]}',
+        'make': 'Sunseeker',
+        'model': 'Predator 50',
+        'boat_type': 'motor yacht',
+        'year_estimate': '2022',
+        'latitude': wc_coords[9][0],
+        'longitude': wc_coords[9][1]
     }
 ])
 

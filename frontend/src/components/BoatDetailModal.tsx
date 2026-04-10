@@ -25,6 +25,12 @@ interface BoatDetailModalProps {
 
 const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose}) => {
   const isDarkMode = useColorScheme() === 'dark';
+  const [imageError, setImageError] = React.useState(false);
+
+  // Reset error state when boat changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [boat?.id]);
 
   if (!boat) return null;
 
@@ -38,8 +44,13 @@ const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose
       <View style={styles.overlay}>
         <View style={[styles.container, {backgroundColor: bgColor}]}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {boat.image ? (
-              <Image source={boat.image} style={styles.image} resizeMode="cover" />
+            {boat.image && !imageError ? (
+              <Image
+                source={boat.image}
+                style={styles.image}
+                resizeMode="cover"
+                onError={() => setImageError(true)}
+              />
             ) : (
               <View style={styles.imagePlaceholder}>
                 <Text style={styles.placeholderEmoji}>🚤</Text>
