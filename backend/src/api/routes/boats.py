@@ -15,6 +15,7 @@ from models.boat_popularity import BoatPopularity
 from models.liked_boat import LikedBoat
 from services.storage_service import BoatStorageService
 from utils.database import get_db
+from utils.rate_limit import limiter
 from api.routes.users import get_current_user, get_current_user_optional
 from dotenv import load_dotenv
 from image_identification import AnthropicBoatIdentifier, BoatIdentificationResult
@@ -38,7 +39,9 @@ def get_boat_identifier():
     return AnthropicBoatIdentifier(api_key=anthropic_key)
 
 @router.post("/identify")
+@limiter.limit("20/minute")
 async def identify_boat_from_image(
+    request: Request,
     image: UploadFile = File(..., description="Image file to analyze"),
     requested_fields: Optional[str] = Form(['make', 'model', 'description', 'year', 'length', 
                              'boat_type', 'hull_material', 'features'], description="Comma-separated list of fields to return"),
@@ -140,12 +143,13 @@ async def identify_boat_from_image(
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Unexpected error during identification")
 
 
 # for uploading files to s3 bucket
 @router.post("/upload", summary="Upload file to S3")
-async def upload_file_to_s3(file: UploadFile | None = None):
+@limiter.limit("20/minute")
+async def upload_file_to_s3(request: Request, file: UploadFile | None = None):
     if file is None:
         return {"error": "No file provided"}
     try:
@@ -198,7 +202,7 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
                 )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error accessing S3: {str(e)}"
+                detail="Error accessing S3"
             )
         
         # Return image as streaming response
@@ -220,7 +224,7 @@ def get_boat_image_from_s3(boat_id: str, db: Session) -> StreamingResponse:
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving boat image: {str(e)}"
+            detail="Error retrieving boat image"
         )
 
 @router.get("/identifications")

@@ -29,6 +29,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
+  const passwordRequirements = [
+    { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+    { label: 'One uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+    { label: 'One lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+    { label: 'One number', test: (p: string) => /[0-9]/.test(p) },
+    { label: 'One special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ];
+  const allRequirementsMet = password.length > 0 && passwordRequirements.every(r => r.test(password));
+
   const textColor = isDarkMode ? '#ffffff' : '#333333';
   const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
@@ -116,10 +125,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             secureTextEntry
           />
 
+          {!isLogin && password.length > 0 && (
+            <View style={styles.requirementsList}>
+              {passwordRequirements.map((req, i) => (
+                <Text key={i} style={[
+                  styles.requirementItem,
+                  { color: req.test(password) ? '#4CAF50' : '#F44336' },
+                ]}>
+                  {req.test(password) ? '✓' : '✗'} {req.label}
+                </Text>
+              ))}
+            </View>
+          )}
+
           <TouchableOpacity
-            style={[styles.submitButton, isLoading && styles.disabledButton]}
+            style={[styles.submitButton, (isLoading || (!isLogin && !allRequirementsMet)) && styles.disabledButton]}
             onPress={handleSubmit}
-            disabled={isLoading}
+            disabled={isLoading || (!isLogin && !allRequirementsMet)}
           >
             {isLoading ? (
               <ActivityIndicator color="#ffffff" />
@@ -231,6 +253,13 @@ const styles = StyleSheet.create({
   switchButtonText: {
     color: '#2196f3',
     fontSize: 14,
+  },
+  requirementsList: {
+    marginBottom: 8,
+  },
+  requirementItem: {
+    fontSize: 12,
+    marginBottom: 2,
   },
   privacyText: {
     fontSize: 12,

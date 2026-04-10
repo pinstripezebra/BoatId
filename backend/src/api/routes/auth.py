@@ -1,22 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
+import re
 import jwt
 import secrets
 import hashlib
 import uuid
+import logging
 from passlib.context import CryptContext
 from models.user import User
 from models.refresh_token import RefreshToken
 from utils.database import get_db
+from utils.rate_limit import limiter
 import os
 
 router = APIRouter()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security_logger = logging.getLogger("boatid.security")
 
 # JWT settings
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
@@ -34,6 +38,21 @@ class UserRegistration(BaseModel):
     location: Optional[str] = None
     phone_number: Optional[str] = None
     description: Optional[str] = None
+
+def validate_password_strength(password: str) -> list[str]:
+    """Return a list of password requirement violations."""
+    errors = []
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
+    if not re.search(r'[A-Z]', password):
+        errors.append("Password must contain at least one uppercase letter")
+    if not re.search(r'[a-z]', password):
+        errors.append("Password must contain at least one lowercase letter")
+    if not re.search(r'[0-9]', password):
+        errors.append("Password must contain at least one number")
+    if not re.search(r'[^A-Za-z0-9]', password):
+        errors.append("Password must contain at least one special character")
+    return errors
 
 class UserLogin(BaseModel):
     username: str
@@ -105,7 +124,9 @@ def create_refresh_token(db: Session, user_id: str) -> str:
     return raw_token
 
 @router.post("/register", summary="Register new user")
+@limiter.limit("5/minute")
 async def register_user(
+    request: Request,
     user_data: UserRegistration,
     db: Session = Depends(get_db)
 ):
@@ -113,6 +134,14 @@ async def register_user(
     Register a new user account.
     """
     try:
+        # Validate password strength
+        password_errors = validate_password_strength(user_data.password)
+        if password_errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=password_errors[0]
+            )
+
         # Check if username or email already exists
         existing_user = db.query(User).filter(
             (User.username == user_data.username) | 
@@ -120,6 +149,7 @@ async def register_user(
         ).first()
         
         if existing_user:
+            security_logger.warning("Registration attempt with existing username/email: %s from %s", user_data.username, request.client.host if request.client else "unknown")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username or email already registered"
@@ -152,13 +182,16 @@ async def register_user(
     except HTTPException:
         raise
     except Exception as e:
+        security_logger.error("Registration error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error registering user: {str(e)}"
+            detail="Error registering user"
         )
 
 @router.post("/token", summary="OAuth2 compliant token endpoint")
+@limiter.limit("10/minute")
 async def login_for_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -169,6 +202,7 @@ async def login_for_access_token(
     try:
         user = authenticate_user(db, form_data.username, form_data.password)
         if not user:
+            security_logger.warning("Failed login (token) for user '%s' from %s", form_data.username, request.client.host if request.client else "unknown")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -194,13 +228,16 @@ async def login_for_access_token(
     except HTTPException:
         raise
     except Exception as e:
+        security_logger.error("Login (token) error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error during login: {str(e)}"
+            detail="Error during login"
         )
 
 @router.post("/login", summary="Mobile-friendly JSON login")
+@limiter.limit("10/minute")
 async def login_user(
+    request: Request,
     login_data: UserLogin,
     db: Session = Depends(get_db)
 ):
@@ -211,6 +248,7 @@ async def login_user(
     try:
         user = authenticate_user(db, login_data.username, login_data.password)
         if not user:
+            security_logger.warning("Failed login for user '%s' from %s", login_data.username, request.client.host if request.client else "unknown")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -236,13 +274,16 @@ async def login_user(
     except HTTPException:
         raise
     except Exception as e:
+        security_logger.error("Login error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error during login: {str(e)}"
+            detail="Error during login"
         )
 
 @router.post("/refresh", summary="Refresh access token")
+@limiter.limit("30/minute")
 async def refresh_token(
+    request: Request,
     refresh_data: RefreshRequest,
     db: Session = Depends(get_db)
 ):
@@ -306,9 +347,10 @@ async def refresh_token(
     except HTTPException:
         raise
     except Exception as e:
+        security_logger.error("Token refresh error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error refreshing token: {str(e)}"
+            detail="Error refreshing token"
         )
 
 @router.post("/logout", summary="Revoke refresh token")
@@ -332,7 +374,8 @@ async def logout(
         return {"message": "Logged out successfully"}
 
     except Exception as e:
+        security_logger.error("Logout error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error during logout: {str(e)}"
+            detail="Error during logout"
         )

@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sql_func
 from typing import List, Optional
+import logging
 from pydantic import BaseModel, EmailStr
 from models.user import User
 from models.boat import BoatIdentification
@@ -11,6 +12,7 @@ from models.liked_boat import LikedBoat
 from models.boat_popularity import BoatPopularity
 from services.s3_service import S3Service
 from utils.database import get_db
+from utils.rate_limit import limiter
 from passlib.context import CryptContext
 import jwt
 import os
@@ -18,6 +20,7 @@ import os
 router = APIRouter()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security_logger = logging.getLogger("boatid.security")
 
 # JWT settings (should match auth.py)
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
@@ -128,7 +131,7 @@ async def get_user_profile(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving user profile: {str(e)}"
+            detail="Error retrieving user profile"
         )
 
 @router.put("/profile/{user_id}", summary="Update user profile")
@@ -174,7 +177,7 @@ async def update_user_profile(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating user profile: {str(e)}"
+            detail="Error updating user profile"
         )
 
 @router.get("/", summary="Get all users (admin only)")
@@ -207,11 +210,13 @@ async def get_all_users(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving users: {str(e)}"
+            detail="Error retrieving users"
         )
 
 @router.delete("/delete-account", summary="Delete current user account")
+@limiter.limit("3/minute")
 async def delete_account(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -258,6 +263,8 @@ async def delete_account(
 
         db.commit()
 
+        security_logger.info("Account deleted: user_id=%s username=%s", user_id, current_user.username)
+
         # 8. Clean up S3 images (after commit so failures don't rollback)
         if s3_keys:
             try:
@@ -273,7 +280,8 @@ async def delete_account(
         raise
     except Exception as e:
         db.rollback()
+        security_logger.error("Account deletion error for user %s: %s", current_user.id, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting account: {str(e)}"
+            detail="Error deleting account"
         )

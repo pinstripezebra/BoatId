@@ -1,12 +1,21 @@
 from dotenv import load_dotenv
 import os
+import logging
 
 # Load environment variables
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from utils.rate_limit import limiter
 from api.routes import auth, boats, users
+
+# Security event logger
+security_logger = logging.getLogger("boatid.security")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 app = FastAPI(
     title="BoatId API",
@@ -14,13 +23,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS – restrict to known origins in production
+allowed_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=[o.strip() for o in allowed_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global exception handler – prevent internal details from leaking
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    security_logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(boats.router, prefix="/api/v1/boats", tags=["boats"])
