@@ -18,9 +18,10 @@ import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
+  onNeedsVerification: (email: string) => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerification }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
@@ -61,14 +62,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         await AuthService.login(username.trim(), password);
         onLoginSuccess();
       } else {
-        await AuthService.register(username.trim(), password, email.trim());
-        // Auto-login after registration
-        await AuthService.login(username.trim(), password);
-        onLoginSuccess();
+        const result = await AuthService.register(username.trim(), password, email.trim());
+        onNeedsVerification(result.email);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'An error occurred';
-      Alert.alert('Error', message);
+      if (message === 'Email not verified') {
+        onNeedsVerification(email.trim());
+      } else {
+        Alert.alert('Error', message);
+      }
     } finally {
       setIsLoading(false);
     }

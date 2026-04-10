@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 
 import LoginScreen from './src/components/LoginScreen';
+import VerificationScreen from './src/components/VerificationScreen';
 import PreviousResultsModal from './src/components/PreviousResultsModal';
 import BoatDetailModal from './src/components/BoatDetailModal';
 import type { DetailBoatData } from './src/components/BoatDetailModal';
@@ -57,6 +58,7 @@ function App(): React.JSX.Element {
   const { captureAndIdentify, isProcessing } = useCameraIdentification();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [showPreviousResults, setShowPreviousResults] = useState(false);
   const [selectedBoat, setSelectedBoat] = useState<DetailBoatData | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('home');
@@ -185,7 +187,25 @@ function App(): React.JSX.Element {
 
   // Show login screen if not authenticated
   if (!isLoggedIn) {
-    return <LoginScreen onLoginSuccess={() => setIsLoggedIn(true)} />;
+    if (pendingVerificationEmail) {
+      return (
+        <VerificationScreen
+          email={pendingVerificationEmail}
+          onVerified={() => {
+            setPendingVerificationEmail(null);
+            setIsLoggedIn(true);
+          }}
+          onBack={() => setPendingVerificationEmail(null)}
+        />
+      );
+    }
+
+    return (
+      <LoginScreen
+        onLoginSuccess={() => setIsLoggedIn(true)}
+        onNeedsVerification={(email) => setPendingVerificationEmail(email)}
+      />
+    );
   }
 
   const user = AuthService.getUser();

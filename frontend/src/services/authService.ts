@@ -23,8 +23,7 @@ export interface LoginResponse {
 
 export interface RegisterResponse {
   message: string;
-  user_id: string;
-  username: string;
+  email: string;
 }
 
 export class AuthService {
@@ -110,6 +109,51 @@ export class AuthService {
     }
 
     return await response.json();
+  }
+
+  static async verifyEmail(email: string, code: string): Promise<LoginResponse> {
+    const url = `${API_BASE_URL}/auth/verify-email`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Verification failed');
+    }
+
+    const data: LoginResponse = await response.json();
+
+    this.token = data.access_token;
+    this.user = {
+      user_id: data.user_id,
+      username: data.username,
+      role: data.role,
+    };
+
+    await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
+    await Keychain.setGenericPassword('refreshToken', data.refresh_token, {
+      service: KEYCHAIN_SERVICE,
+    });
+
+    return data;
+  }
+
+  static async resendVerification(email: string): Promise<void> {
+    const url = `${API_BASE_URL}/auth/resend-verification`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to resend code');
+    }
   }
 
   static async refresh(): Promise<void> {

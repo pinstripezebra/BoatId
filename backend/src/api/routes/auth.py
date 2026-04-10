@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 import re
+import random
 import jwt
 import secrets
 import hashlib
@@ -15,6 +16,7 @@ from models.user import User
 from models.refresh_token import RefreshToken
 from utils.database import get_db
 from utils.rate_limit import limiter
+from services.email_service import send_verification_email
 import os
 
 router = APIRouter()
@@ -71,6 +73,17 @@ class RefreshRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+def generate_verification_code() -> str:
+    """Generate a cryptographically random 6-digit code."""
+    return str(random.SystemRandom().randint(100000, 999999))
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
@@ -163,6 +176,7 @@ async def register_user(
             username=user_data.username,
             password=hashed_password,
             email=user_data.email,
+            email_verified=False,
             role=user_data.role,
             location=user_data.location,
             phone_number=user_data.phone_number,
@@ -172,11 +186,19 @@ async def register_user(
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+
+        # Generate and store verification code
+        code = generate_verification_code()
+        new_user.verification_code = code
+        new_user.verification_code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+        db.commit()
+
+        # Send verification email
+        send_verification_email(new_user.email, code)
         
         return {
-            "message": "User registered successfully",
-            "user_id": str(new_user.id),
-            "username": new_user.username
+            "message": "Verification email sent",
+            "email": new_user.email
         }
         
     except HTTPException:
@@ -207,6 +229,13 @@ async def login_for_access_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if not user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email not verified",
+                headers={"X-Email": user.email},
             )
         
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -253,6 +282,13 @@ async def login_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if not user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email not verified",
+                headers={"X-Email": user.email},
             )
         
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -378,4 +414,118 @@ async def logout(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error during logout"
+        )
+
+@router.post("/verify-email", summary="Verify email with code")
+@limiter.limit("10/minute")
+async def verify_email(
+    request: Request,
+    verify_data: VerifyEmailRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Verify a user's email address using the 6-digit code sent during registration.
+    On success, returns access and refresh tokens (auto-login).
+    """
+    try:
+        user = db.query(User).filter(User.email == verify_data.email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No account found with that email"
+            )
+
+        if user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already verified"
+            )
+
+        if not user.verification_code or not user.verification_code_expires_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No verification code pending. Request a new one."
+            )
+
+        if user.verification_code_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification code has expired. Request a new one."
+            )
+
+        if user.verification_code != verify_data.code:
+            security_logger.warning("Invalid verification code for %s from %s", verify_data.email, request.client.host if request.client else "unknown")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid verification code"
+            )
+
+        # Mark email as verified and clear code
+        user.email_verified = True
+        user.verification_code = None
+        user.verification_code_expires_at = None
+        db.commit()
+
+        security_logger.info("Email verified for user %s (%s)", user.id, user.email)
+
+        # Auto-login: issue tokens
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": str(user.id), "username": user.username, "role": user.role},
+            expires_delta=access_token_expires
+        )
+        refresh_token = create_refresh_token(db, str(user.id))
+
+        return Token(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            user_id=str(user.id),
+            username=user.username,
+            role=user.role
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        security_logger.error("Email verification error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error verifying email"
+        )
+
+@router.post("/resend-verification", summary="Resend verification code")
+@limiter.limit("3/minute")
+async def resend_verification(
+    request: Request,
+    resend_data: ResendVerificationRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate and send a new verification code to the user's email.
+    """
+    try:
+        user = db.query(User).filter(User.email == resend_data.email).first()
+        if not user:
+            # Return success even if not found to prevent email enumeration
+            return {"message": "If that email exists, a new code has been sent"}
+
+        if user.email_verified:
+            return {"message": "Email already verified"}
+
+        # Generate new code
+        code = generate_verification_code()
+        user.verification_code = code
+        user.verification_code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+        db.commit()
+
+        send_verification_email(user.email, code)
+
+        return {"message": "If that email exists, a new code has been sent"}
+
+    except Exception as e:
+        security_logger.error("Resend verification error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error resending verification code"
         )

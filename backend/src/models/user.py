@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, func
+from sqlalchemy import Column, String, Boolean, Text, DateTime, func
 from utils.database import Base  # ← Importing shared base from utils.database
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -11,6 +11,9 @@ class User(Base):
     username = Column(String(255), nullable=False, unique=True)
     password = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
+    email_verified = Column(Boolean, nullable=False, default=False)
+    verification_code = Column(String(6), nullable=True)
+    verification_code_expires_at = Column(DateTime(timezone=True), nullable=True)
     role = Column(String(20), nullable=False)
     location = Column(String(255))
     phone_number = Column(String(20))
