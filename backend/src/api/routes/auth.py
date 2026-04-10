@@ -16,7 +16,7 @@ from models.user import User
 from models.refresh_token import RefreshToken
 from utils.database import get_db
 from utils.rate_limit import limiter
-from services.email_service import send_verification_email
+from services.email_service import send_verification_email, send_password_reset_email
 import os
 
 router = APIRouter()
@@ -80,6 +80,14 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
 
 def generate_verification_code() -> str:
     """Generate a cryptographically random 6-digit code."""
@@ -528,4 +536,105 @@ async def resend_verification(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error resending verification code"
+        )
+
+@router.post("/forgot-password", summary="Request password reset code")
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    forgot_data: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Send a 6-digit password reset code to the user's email.
+    Always returns success to prevent email enumeration.
+    """
+    try:
+        user = db.query(User).filter(User.email == forgot_data.email).first()
+        if user:
+            code = generate_verification_code()
+            user.reset_code = code
+            user.reset_code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+            db.commit()
+            send_password_reset_email(user.email, code)
+
+        return {"message": "If that email exists, a reset code has been sent"}
+
+    except Exception as e:
+        security_logger.error("Forgot password error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error processing password reset request"
+        )
+
+@router.post("/reset-password", summary="Reset password with code")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    reset_data: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Reset a user's password using the 6-digit code sent via email.
+    Revokes all existing refresh tokens for the user.
+    """
+    try:
+        user = db.query(User).filter(User.email == reset_data.email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset code"
+            )
+
+        if not user.reset_code or not user.reset_code_expires_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No reset code pending. Request a new one."
+            )
+
+        if user.reset_code_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reset code has expired. Request a new one."
+            )
+
+        if user.reset_code != reset_data.code:
+            security_logger.warning("Invalid reset code for %s from %s", reset_data.email, request.client.host if request.client else "unknown")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid reset code"
+            )
+
+        # Validate new password strength
+        password_errors = validate_password_strength(reset_data.new_password)
+        if password_errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=password_errors[0]
+            )
+
+        # Update password and clear reset code
+        user.password = get_password_hash(reset_data.new_password)
+        user.reset_code = None
+        user.reset_code_expires_at = None
+        db.commit()
+
+        # Revoke all refresh tokens for this user
+        db.query(RefreshToken).filter(
+            RefreshToken.user_id == user.id,
+            RefreshToken.revoked == False,
+        ).update({"revoked": True})
+        db.commit()
+
+        security_logger.info("Password reset for user %s (%s)", user.id, user.email)
+
+        return {"message": "Password has been reset successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        security_logger.error("Reset password error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error resetting password"
         )

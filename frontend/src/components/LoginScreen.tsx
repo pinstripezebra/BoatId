@@ -19,9 +19,10 @@ import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 interface LoginScreenProps {
   onLoginSuccess: () => void;
   onNeedsVerification: (email: string) => void;
+  onForgotPassword: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerification }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerification, onForgotPassword }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
@@ -155,6 +156,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
             )}
           </TouchableOpacity>
 
+          {isLogin && (
+            <TouchableOpacity
+              style={styles.forgotButton}
+              onPress={onForgotPassword}
+            >
+              <Text style={[styles.forgotText, { color: '#2196f3' }]}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
+
           {!isLogin && (
             <Text style={[styles.privacyText, { color: subtextColor }]}>
               By registering, you agree to our{' '}
@@ -272,6 +282,13 @@ const styles = StyleSheet.create({
   privacyLink: {
     color: '#2196f3',
     textDecorationLine: 'underline',
+  },
+  forgotButton: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  forgotText: {
+    fontSize: 14,
   },
 });
 

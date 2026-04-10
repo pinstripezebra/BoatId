@@ -22,6 +22,8 @@ import {
 
 import LoginScreen from './src/components/LoginScreen';
 import VerificationScreen from './src/components/VerificationScreen';
+import ForgotPasswordScreen from './src/components/ForgotPasswordScreen';
+import ResetPasswordScreen from './src/components/ResetPasswordScreen';
 import PreviousResultsModal from './src/components/PreviousResultsModal';
 import BoatDetailModal from './src/components/BoatDetailModal';
 import type { DetailBoatData } from './src/components/BoatDetailModal';
@@ -59,6 +61,8 @@ function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
+  const [resetFlowEmail, setResetFlowEmail] = useState<string | null>(null);
+  const [resetFlowStep, setResetFlowStep] = useState<'forgot' | 'reset' | null>(null);
   const [showPreviousResults, setShowPreviousResults] = useState(false);
   const [selectedBoat, setSelectedBoat] = useState<DetailBoatData | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('home');
@@ -200,10 +204,42 @@ function App(): React.JSX.Element {
       );
     }
 
+    if (resetFlowStep === 'forgot') {
+      return (
+        <ForgotPasswordScreen
+          onCodeSent={(email) => {
+            setResetFlowEmail(email);
+            setResetFlowStep('reset');
+          }}
+          onBack={() => {
+            setResetFlowStep(null);
+            setResetFlowEmail(null);
+          }}
+        />
+      );
+    }
+
+    if (resetFlowStep === 'reset' && resetFlowEmail) {
+      return (
+        <ResetPasswordScreen
+          email={resetFlowEmail}
+          onResetSuccess={() => {
+            setResetFlowStep(null);
+            setResetFlowEmail(null);
+          }}
+          onBack={() => {
+            setResetFlowStep(null);
+            setResetFlowEmail(null);
+          }}
+        />
+      );
+    }
+
     return (
       <LoginScreen
         onLoginSuccess={() => setIsLoggedIn(true)}
         onNeedsVerification={(email) => setPendingVerificationEmail(email)}
+        onForgotPassword={() => setResetFlowStep('forgot')}
       />
     );
   }

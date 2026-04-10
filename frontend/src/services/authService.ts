@@ -233,6 +233,34 @@ export class AuthService {
     // Clear local storage after successful deletion
     await this.logout();
   }
+
+  static async forgotPassword(email: string): Promise<void> {
+    const url = `${API_BASE_URL}/auth/forgot-password`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to send reset code');
+    }
+  }
+
+  static async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+    const url = `${API_BASE_URL}/auth/reset-password`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, new_password: newPassword }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to reset password');
+    }
+  }
 }
 
 export default AuthService;
