@@ -11,8 +11,10 @@ import {
   Platform,
   ScrollView,
   useColorScheme,
+  Modal,
 } from 'react-native';
 import { AuthService } from '../services/authService';
+import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -25,12 +27,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   const textColor = isDarkMode ? '#ffffff' : '#333333';
   const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
   const inputBg = isDarkMode ? '#333333' : '#f5f5f5';
   const inputBorder = isDarkMode ? '#555555' : '#e0e0e0';
+  const subtextColor = isDarkMode ? '#aaaaaa' : '#666666';
 
   const handleSubmit = async () => {
     if (!username.trim() || !password.trim()) {
@@ -126,6 +130,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             )}
           </TouchableOpacity>
 
+          {!isLogin && (
+            <Text style={[styles.privacyText, { color: subtextColor }]}>
+              By registering, you agree to our{' '}
+              <Text
+                style={styles.privacyLink}
+                onPress={() => setShowPrivacyPolicy(true)}>
+                Privacy Policy
+              </Text>
+            </Text>
+          )}
+
           <TouchableOpacity
             style={styles.switchButton}
             onPress={() => {
@@ -141,6 +156,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal visible={showPrivacyPolicy} animationType="slide">
+        <PrivacyPolicyScreen onClose={() => setShowPrivacyPolicy(false)} />
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -212,6 +231,15 @@ const styles = StyleSheet.create({
   switchButtonText: {
     color: '#2196f3',
     fontSize: 14,
+  },
+  privacyText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  privacyLink: {
+    color: '#2196f3',
+    textDecorationLine: 'underline',
   },
 });
 

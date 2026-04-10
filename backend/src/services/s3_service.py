@@ -37,3 +37,14 @@ class S3Service:
         except ClientError as e:
             print(f"Error uploading to S3: {e}")
             return None
+
+    async def delete_image(self, s3_key: str) -> bool:
+        try:
+            self.s3_client.delete_object(
+                Bucket=self.bucket_name,
+                Key=s3_key
+            )
+            return True
+        except ClientError as e:
+            print(f"Error deleting from S3: {e}")
+            return False

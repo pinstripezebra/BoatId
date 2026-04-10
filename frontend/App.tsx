@@ -233,7 +233,7 @@ ${details?.description || ''}`;
       />
 
       {activeTab === 'profile' ? (
-        <ProfileScreen />
+        <ProfileScreen onLogout={handleLogout} />
       ) : activeTab === 'map' ? (
         <MapScreen onBoatPress={setSelectedBoat} />
       ) : activeTab === 'search' ? (
@@ -257,9 +257,6 @@ ${details?.description || ''}`;
                   Boat Identification Made Simple
                 </Text>
               </View>
-              <TouchableOpacity onPress={handleLogout} style={styles.signOutButton}>
-                <Text style={styles.signOutText}>Sign Out</Text>
-              </TouchableOpacity>
             </View>
             {user && (
               <Text style={[styles.userLabel, textStyle]}>
@@ -335,18 +332,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     opacity: 0.6,
-  },
-  signOutButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(244, 67, 54, 0.1)',
-    marginTop: 4,
-  },
-  signOutText: {
-    color: '#f44336',
-    fontSize: 13,
-    fontWeight: '500',
   },
   centered: {
     justifyContent: 'center',

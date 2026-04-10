@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sql_func
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr
 from models.user import User
+from models.boat import BoatIdentification
+from models.refresh_token import RefreshToken
+from models.liked_boat import LikedBoat
+from models.boat_popularity import BoatPopularity
+from services.s3_service import S3Service
 from utils.database import get_db
 from passlib.context import CryptContext
 import jwt
@@ -202,4 +208,72 @@ async def get_all_users(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving users: {str(e)}"
+        )
+
+@router.delete("/delete-account", summary="Delete current user account")
+async def delete_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Permanently delete the current user's account and all associated data.
+    """
+    try:
+        user_id = current_user.id
+
+        # 1. Get liked boat IDs for popularity decrement
+        liked_boat_ids = db.query(LikedBoat.boat_id).filter(
+            LikedBoat.user_id == user_id
+        ).all()
+        liked_boat_ids = [row[0] for row in liked_boat_ids]
+
+        # 2. Delete liked_boats
+        db.query(LikedBoat).filter(LikedBoat.user_id == user_id).delete()
+
+        # 3. Decrement boat_popularity for affected boats
+        if liked_boat_ids:
+            db.query(BoatPopularity).filter(
+                BoatPopularity.id.in_(liked_boat_ids)
+            ).update(
+                {BoatPopularity.likes: BoatPopularity.likes - 1},
+                synchronize_session='fetch'
+            )
+
+        # 4. Collect S3 keys before deleting boat_identifications
+        s3_keys = db.query(BoatIdentification.s3_image_key).filter(
+            BoatIdentification.user_id == user_id
+        ).all()
+        s3_keys = [row[0] for row in s3_keys if row[0]]
+
+        # 5. Delete boat_identifications
+        db.query(BoatIdentification).filter(
+            BoatIdentification.user_id == user_id
+        ).delete()
+
+        # 6. Delete refresh_tokens
+        db.query(RefreshToken).filter(RefreshToken.user_id == str(user_id)).delete()
+
+        # 7. Delete user
+        db.query(User).filter(User.id == user_id).delete()
+
+        db.commit()
+
+        # 8. Clean up S3 images (after commit so failures don't rollback)
+        if s3_keys:
+            try:
+                s3_service = S3Service()
+                for key in s3_keys:
+                    await s3_service.delete_image(key)
+            except Exception as e:
+                print(f"Warning: S3 cleanup failed for user {user_id}: {e}")
+
+        return {"message": "Account deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting account: {str(e)}"
         )

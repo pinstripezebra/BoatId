@@ -19,7 +19,9 @@ security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings
-SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "your-secret-key-here")  # Change in production
+SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("AUTH_SECRET_KEY environment variable is required")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours – mobile clients use refresh-token rotation for revocation
 REFRESH_TOKEN_EXPIRE_DAYS = 30

@@ -171,6 +171,24 @@ export class AuthService {
     await AsyncStorage.removeItem(USER_KEY);
     await Keychain.resetGenericPassword({ service: KEYCHAIN_SERVICE });
   }
+
+  static async deleteAccount(): Promise<void> {
+    const url = `${API_BASE_URL}/api/v1/users/delete-account`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to delete account');
+    }
+
+    // Clear local storage after successful deletion
+    await this.logout();
+  }
 }
 
 export default AuthService;
