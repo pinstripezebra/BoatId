@@ -64,7 +64,8 @@ boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_i
     year_estimate VARCHAR(20),
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    search_vector TSVECTOR
     )"""
 
 refresh_tokens_table_creation_query = """CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -116,6 +117,7 @@ admin_user = pd.DataFrame([{
     'role': 'admin',
     'location': None,
     'phone_number': None,
+
     'description': 'Administrator user for BoatId system'
 }])
 
@@ -149,6 +151,7 @@ index_queries = [
     "CREATE INDEX IF NOT EXISTS idx_boat_location ON boat_identifications (latitude, longitude);",
     "CREATE INDEX IF NOT EXISTS idx_liked_boats_user_id ON liked_boats (user_id);",
     "CREATE INDEX IF NOT EXISTS idx_liked_boats_boat_id ON liked_boats (boat_id);",
+    "CREATE INDEX IF NOT EXISTS idx_boat_search_vector ON boat_identifications USING GIN (search_vector);",
 ]
 
 for index_query in index_queries:
@@ -156,6 +159,34 @@ for index_query in index_queries:
         engine.create_table(index_query)  # Reusing create_table method for index creation
     except Exception as e:
         print(f"Warning: Could not create index: {e}")
+
+# Create trigger to auto-populate search_vector on insert/update
+search_vector_trigger_func = """
+CREATE OR REPLACE FUNCTION boat_search_vector_update() RETURNS trigger AS $$
+BEGIN
+    NEW.search_vector :=
+        setweight(to_tsvector('english', COALESCE(NEW.make, '')), 'A') ||
+        setweight(to_tsvector('english', COALESCE(NEW.model, '')), 'A') ||
+        setweight(to_tsvector('english', COALESCE(NEW.boat_type, '')), 'B') ||
+        setweight(to_tsvector('english', COALESCE(NEW.identification_data::json->>'description', '')), 'C');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+search_vector_trigger = """
+DROP TRIGGER IF EXISTS trg_boat_search_vector ON boat_identifications;
+CREATE TRIGGER trg_boat_search_vector
+    BEFORE INSERT OR UPDATE ON boat_identifications
+    FOR EACH ROW EXECUTE FUNCTION boat_search_vector_update();
+"""
+
+try:
+    engine.create_table(search_vector_trigger_func)
+    engine.create_table(search_vector_trigger)
+    print("Successfully created search_vector trigger")
+except Exception as e:
+    print(f"Warning: Could not create search_vector trigger: {e}")
 
 # Populate users table
 engine.populate_table_dynamic(users, 'users')

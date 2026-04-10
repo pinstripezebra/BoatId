@@ -206,22 +206,43 @@ class BoatStorageService:
             'is_boat': record.is_boat
         }
     
-    def search_boats(self, search_term: str, limit: int = 50) -> List[Dict]:
-        """Search boats by make, model, or description"""
-        
-        # Use PostgreSQL's JSON operators for flexible search
-        query = self.db.query(BoatIdentification)\
-                      .filter(BoatIdentification.is_boat == True)\
-                      .filter(
-                          BoatIdentification.make.ilike(f"%{search_term}%") |
-                          BoatIdentification.model.ilike(f"%{search_term}%") |
-                          BoatIdentification.identification_data['description'].astext.ilike(f"%{search_term}%")
-                      )\
-                      .order_by(BoatIdentification.created_at.desc())\
-                      .limit(limit)
-        
+    def search_boats(self, search_term: str, limit: int = 50, offset: int = 0) -> Dict:
+        """Search boats using PostgreSQL full-text search, sorted by popularity."""
+        from sqlalchemy import func, text
+        from models.boat_popularity import BoatPopularity
+
+        # Build tsquery from search term — split words and join with &
+        words = search_term.strip().split()
+        if not words:
+            return {'results': [], 'total_count': 0}
+
+        # Use plainto_tsquery for safe parsing of user input
+        ts_query = func.plainto_tsquery('english', search_term.strip())
+
+        # Base query: match against search_vector, join with popularity
+        base_query = (
+            self.db.query(
+                BoatIdentification,
+                func.coalesce(BoatPopularity.likes, 0).label('likes'),
+                func.ts_rank(BoatIdentification.search_vector, ts_query).label('rank'),
+            )
+            .outerjoin(BoatPopularity, BoatPopularity.id == BoatIdentification.id)
+            .filter(BoatIdentification.is_boat == True)
+            .filter(BoatIdentification.search_vector.op('@@')(ts_query))
+        )
+
+        total_count = base_query.count()
+
+        rows = (
+            base_query
+            .order_by(text('likes DESC'), text('rank DESC'))
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
         results = []
-        for record in query.all():
+        for record, likes, rank in rows:
             try:
                 image_url = self.s3_client.generate_presigned_url(
                     'get_object',
@@ -231,12 +252,18 @@ class BoatStorageService:
             except Exception as e:
                 print(f"Warning: Could not generate presigned URL: {e}")
                 image_url = f"/api/boats/identifications/{record.id}/image"
-            
+
             results.append({
                 'id': record.id,
                 'image_url': image_url,
+                'make': record.make,
+                'model': record.model,
+                'boat_type': record.boat_type,
+                'year_estimate': record.year_estimate,
+                'confidence': record.confidence,
                 'identification_data': record.identification_data,
-                'relevance_score': 1.0  # You could implement proper scoring
+                'likes': likes,
+                'relevance_score': float(rank) if rank else 0.0,
             })
-        
-        return results
+
+        return {'results': results, 'total_count': total_count}

@@ -456,22 +456,39 @@ async def get_boat_identification(
 @router.get("/search")
 async def search_boats(
     q: str,
-    limit: int = 50,
-    db: Session = Depends(get_db)
+    page: int = Query(1, ge=1),
+    per_page: int = Query(8, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Search boat identifications"""
-    
+    """Search boat identifications using full-text search, sorted by popularity."""
+
     storage_service = BoatStorageService(
         db_session=db,
         s3_bucket=aws_bucket_name or "boatid-images"
     )
-    
-    results = storage_service.search_boats(q, limit)
-    
+
+    offset = (page - 1) * per_page
+    data = storage_service.search_boats(q, limit=per_page, offset=offset)
+
+    # Get liked boat IDs for current user
+    liked_ids = set()
+    if current_user:
+        rows = db.query(LikedBoat.boat_id).filter(LikedBoat.user_id == current_user.id).all()
+        liked_ids = {r[0] for r in rows}
+
+    # Add is_liked flag to each result
+    for item in data['results']:
+        item['is_liked'] = item['id'] in liked_ids
+
+    total = data['total_count']
     return {
         "query": q,
-        "results": results,
-        "count": len(results)
+        "results": data['results'],
+        "total_count": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page,
     }
 
 @router.get("/identification-fields")

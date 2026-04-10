@@ -47,18 +47,30 @@ export interface BoatIdentificationListResponse {
   total_pages: number;
 }
 
+export interface SearchResult {
+  id: number;
+  image_url: string;
+  make: string | null;
+  model: string | null;
+  boat_type: string | null;
+  year_estimate: string | null;
+  confidence: string | null;
+  identification_data: BoatDetails & {
+    is_boat: boolean;
+    confidence: string;
+  };
+  likes: number;
+  relevance_score: number;
+  is_liked: boolean;
+}
+
 export interface SearchResponse {
   query: string;
-  results: Array<{
-    id: number;
-    image_url: string;
-    identification_data: BoatDetails & {
-      is_boat: boolean;
-      confidence: string;
-    };
-    relevance_score: number;
-  }>;
-  count: number;
+  results: SearchResult[];
+  total_count: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
 }
 
 export interface NearbyBoat {
@@ -199,8 +211,8 @@ export class BoatApiService {
   /**
    * Search boat identifications
    */
-  static async searchBoats(query: string, limit: number = 50): Promise<SearchResponse> {
-    const queryParams = new URLSearchParams({ q: query.trim(), limit: limit.toString() });
+  static async searchBoats(query: string, page: number = 1, perPage: number = 8): Promise<SearchResponse> {
+    const queryParams = new URLSearchParams({ q: query.trim(), page: page.toString(), per_page: perPage.toString() });
     return await HttpClient.get<SearchResponse>(`api/v1/boats/search?${queryParams.toString()}`);
   }
 

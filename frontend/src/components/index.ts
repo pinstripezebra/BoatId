@@ -7,6 +7,7 @@ export {default as BoatCard} from './BoatCard';
 export {default as HorizontalBoatList} from './HorizontalBoatList';
 export {default as BottomNavBar} from './BottomNavBar';
 export {default as SearchBar} from './SearchBar';
+export {default as SearchResultsScreen} from './SearchResultsScreen';
 
 // Type exports
 export type {default as WelcomeCardProps} from './WelcomeCard';

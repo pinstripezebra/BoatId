@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, DateTime, Boolean, Index, Integer, ForeignKey, Float
 from utils.database import Base  # ← Importing shared base from utils.database
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import JSON, UUID, TSVECTOR
 from datetime import datetime
 
 class BoatIdentification(Base):
@@ -27,6 +27,9 @@ class BoatIdentification(Base):
     longitude = Column(Float, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    # Full-text search vector (populated by DB trigger)
+    search_vector = Column(TSVECTOR)
     
     # Composite indexes for common queries
     __table_args__ = (

@@ -15,4 +15,5 @@ export type {
   PopularBoatsResponse,
   LikedBoatIdsResponse,
   UserLikedBoatsResponse,
+  SearchResult,
 } from './boatApi';

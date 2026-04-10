@@ -30,6 +30,7 @@ import BottomNavBar from './src/components/BottomNavBar';
 import type { TabName } from './src/components/BottomNavBar';
 import ProfileScreen from './src/components/ProfileScreen';
 import MapScreen from './src/components/MapScreen';
+import SearchResultsScreen from './src/components/SearchResultsScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { BoatApiService } from './src/services';
@@ -62,6 +63,7 @@ function App(): React.JSX.Element {
   const [userBoats, setUserBoats] = useState<BoatCardData[]>([]);
   const [popularBoats, setPopularBoats] = useState<BoatCardData[]>([]);
   const [likedBoatIds, setLikedBoatIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -165,6 +167,11 @@ function App(): React.JSX.Element {
 
   const isBoatLiked = useCallback((id: string) => likedBoatIds.has(id), [likedBoatIds]);
 
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    setActiveTab('search');
+  }, []);
+
   useEffect(() => {
     if (isLoggedIn) {
       loadUserBoats();
@@ -235,6 +242,14 @@ ${details?.description || ''}`;
         <ProfileScreen />
       ) : activeTab === 'map' ? (
         <MapScreen onBoatPress={setSelectedBoat} />
+      ) : activeTab === 'search' && searchQuery ? (
+        <SearchResultsScreen
+          query={searchQuery}
+          onBack={() => setActiveTab('home')}
+          onBoatPress={setSelectedBoat}
+          isLiked={isBoatLiked}
+          onLikeToggle={handleLikeToggle}
+        />
       ) : (
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -260,7 +275,7 @@ ${details?.description || ''}`;
             )}
           </View>
 
-          <SearchBar />
+          <SearchBar onSearch={handleSearch} />
 
           <HorizontalBoatList title="Popular Boats" boats={popularBoats} onBoatPress={setSelectedBoat} maxItems={5} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
           <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
