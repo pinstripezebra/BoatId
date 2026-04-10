@@ -43,15 +43,6 @@ const boatImages = {
   boat5: require('./src/assets/images/boat5.png'),
 };
 
-const POPULAR_BOATS: BoatCardData[] = [
-  {id: 'p1', name: 'Sea Ray Sundancer', make: 'Sea Ray', type: 'Cruiser', image: boatImages.boat1},
-  {id: 'p2', name: 'Boston Whaler Montauk', make: 'Boston Whaler', type: 'Center Console', image: boatImages.boat2},
-  {id: 'p3', name: 'Bayliner VR5', make: 'Bayliner', type: 'Bowrider', image: boatImages.boat3},
-  {id: 'p4', name: 'Yamaha 252S', make: 'Yamaha', type: 'Jet Boat', image: boatImages.boat4},
-  {id: 'p5', name: 'Mastercraft X24', make: 'Mastercraft', type: 'Wakeboard', image: boatImages.boat5},
-  {id: 'p6', name: 'Grady-White Freedom', make: 'Grady-White', type: 'Dual Console', image: boatImages.boat1},
-];
-
 const NEARBY_BOATS: BoatCardData[] = [
   {id: 'n1', name: 'Chaparral 267 SSX', make: 'Chaparral', type: 'Bowrider', image: boatImages.boat3},
   {id: 'n2', name: 'Tracker Pro 170', make: 'Tracker', type: 'Bass Boat', image: boatImages.boat5},
@@ -69,6 +60,8 @@ function App(): React.JSX.Element {
   const [selectedBoat, setSelectedBoat] = useState<DetailBoatData | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('home');
   const [userBoats, setUserBoats] = useState<BoatCardData[]>([]);
+  const [popularBoats, setPopularBoats] = useState<BoatCardData[]>([]);
+  const [likedBoatIds, setLikedBoatIds] = useState<Set<string>>(new Set());
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -121,11 +114,64 @@ function App(): React.JSX.Element {
     }
   }, []);
 
+  const loadPopularBoats = useCallback(async () => {
+    try {
+      const data = await BoatApiService.getPopularBoats(5);
+      const mapped: BoatCardData[] = data.results.map(item => ({
+        id: item.id.toString(),
+        name: item.model
+          ? `${item.make || ''} ${item.model}`.trim()
+          : item.make || 'Unknown Boat',
+        make: item.make || undefined,
+        type: item.boat_type || undefined,
+        image: item.image_url ? { uri: item.image_url } : undefined,
+      }));
+      setPopularBoats(mapped);
+    } catch (error) {
+      console.error('Failed to load popular boats:', error);
+    }
+  }, []);
+
+  const loadLikedBoatIds = useCallback(async () => {
+    try {
+      const data = await BoatApiService.getLikedBoatIds();
+      setLikedBoatIds(new Set(data.liked_boat_ids.map(id => id.toString())));
+    } catch (error) {
+      console.error('Failed to load liked boat ids:', error);
+    }
+  }, []);
+
+  const handleLikeToggle = useCallback(async (boatId: string) => {
+    const numericId = parseInt(boatId, 10);
+    const wasLiked = likedBoatIds.has(boatId);
+    try {
+      if (wasLiked) {
+        await BoatApiService.unlikeBoat(numericId);
+        setLikedBoatIds(prev => {
+          const next = new Set(prev);
+          next.delete(boatId);
+          return next;
+        });
+      } else {
+        await BoatApiService.likeBoat(numericId);
+        setLikedBoatIds(prev => new Set(prev).add(boatId));
+      }
+      // Refresh popular boats since like counts changed
+      loadPopularBoats();
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+    }
+  }, [likedBoatIds, loadPopularBoats]);
+
+  const isBoatLiked = useCallback((id: string) => likedBoatIds.has(id), [likedBoatIds]);
+
   useEffect(() => {
     if (isLoggedIn) {
       loadUserBoats();
+      loadPopularBoats();
+      loadLikedBoatIds();
     }
-  }, [isLoggedIn, loadUserBoats]);
+  }, [isLoggedIn, loadUserBoats, loadPopularBoats, loadLikedBoatIds]);
 
   // Show loading while checking stored auth
   if (isCheckingAuth) {
@@ -186,7 +232,7 @@ ${details?.description || ''}`;
       />
 
       {activeTab === 'profile' ? (
-        <ProfileScreen onViewAllBoats={() => setShowPreviousResults(true)} />
+        <ProfileScreen />
       ) : activeTab === 'map' ? (
         <MapScreen onBoatPress={setSelectedBoat} />
       ) : (
@@ -216,11 +262,11 @@ ${details?.description || ''}`;
 
           <SearchBar />
 
-          <HorizontalBoatList title="Popular Boats" boats={POPULAR_BOATS} onBoatPress={setSelectedBoat} />
-          <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} />
+          <HorizontalBoatList title="Popular Boats" boats={popularBoats} onBoatPress={setSelectedBoat} maxItems={5} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
+          <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
 
           {userBoats.length > 0 && (
-            <HorizontalBoatList title="Your Boats" boats={userBoats} onBoatPress={setSelectedBoat} />
+            <HorizontalBoatList title="Your Boats" boats={userBoats} onBoatPress={setSelectedBoat} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
           )}
         </ScrollView>
       )}
@@ -243,6 +289,8 @@ ${details?.description || ''}`;
         visible={selectedBoat !== null}
         boat={selectedBoat}
         onClose={() => setSelectedBoat(null)}
+        isLiked={selectedBoat ? likedBoatIds.has(selectedBoat.id) : false}
+        onLikeToggle={handleLikeToggle}
       />
     </SafeAreaView>
   );

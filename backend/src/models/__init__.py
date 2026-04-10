@@ -2,3 +2,5 @@
 from models.user import User
 from models.boat import BoatIdentification
 from models.refresh_token import RefreshToken
+from models.boat_popularity import BoatPopularity
+from models.liked_boat import LikedBoat

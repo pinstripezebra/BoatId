@@ -11,6 +11,8 @@ import io
 from botocore.exceptions import ClientError, NoCredentialsError
 from models.boat import BoatIdentification
 from models.user import User
+from models.boat_popularity import BoatPopularity
+from models.liked_boat import LikedBoat
 from services.storage_service import BoatStorageService
 from utils.database import get_db
 from api.routes.users import get_current_user, get_current_user_optional
@@ -257,6 +259,180 @@ async def get_boat_identifications(
         "per_page": per_page,
         "total_pages": (results['total_count'] + per_page - 1) // per_page
     }
+
+@router.get("/popular")
+async def get_popular_boats(
+    request: Request,
+    limit: int = Query(5, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Get the most popular boats sorted by number of likes."""
+    results = (
+        db.query(BoatIdentification, BoatPopularity.likes)
+        .join(BoatPopularity, BoatPopularity.id == BoatIdentification.id)
+        .filter(BoatIdentification.is_boat == True)
+        .order_by(BoatPopularity.likes.desc())
+        .limit(limit)
+        .all()
+    )
+
+    storage_service = BoatStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "boatid-images",
+    )
+
+    boats = []
+    for boat, likes in results:
+        try:
+            image_url = storage_service.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': storage_service.bucket, 'Key': boat.s3_image_key},
+                ExpiresIn=3600,
+            )
+        except Exception:
+            base_url = str(request.base_url).rstrip('/')
+            image_url = f"{base_url}/api/v1/boats/identifications/{boat.id}/image"
+
+        boats.append({
+            'id': boat.id,
+            'make': boat.make,
+            'model': boat.model,
+            'boat_type': boat.boat_type,
+            'year_estimate': boat.year_estimate,
+            'confidence': boat.confidence,
+            'image_url': image_url,
+            'likes': likes,
+            'identification_data': boat.identification_data,
+        })
+
+    return {"results": boats, "count": len(boats)}
+
+
+@router.get("/liked")
+async def get_liked_boat_ids(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get list of boat IDs the current user has liked."""
+    rows = db.query(LikedBoat.boat_id).filter(LikedBoat.user_id == current_user.id).all()
+    return {"liked_boat_ids": [r[0] for r in rows]}
+
+
+@router.get("/user-liked")
+async def get_user_liked_boats(
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(8, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get paginated boat details for boats the current user has liked."""
+    offset = (page - 1) * per_page
+
+    total = db.query(LikedBoat).filter(LikedBoat.user_id == current_user.id).count()
+
+    rows = (
+        db.query(BoatIdentification)
+        .join(LikedBoat, LikedBoat.boat_id == BoatIdentification.id)
+        .filter(LikedBoat.user_id == current_user.id)
+        .order_by(BoatIdentification.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    storage_service = BoatStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "boatid-images",
+    )
+
+    results = []
+    for boat in rows:
+        try:
+            image_url = storage_service.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': storage_service.bucket, 'Key': boat.s3_image_key},
+                ExpiresIn=3600,
+            )
+        except Exception:
+            base_url = str(request.base_url).rstrip('/')
+            image_url = f"{base_url}/api/v1/boats/identifications/{boat.id}/image"
+
+        results.append({
+            'id': boat.id,
+            'make': boat.make,
+            'model': boat.model,
+            'boat_type': boat.boat_type,
+            'year_estimate': boat.year_estimate,
+            'confidence': boat.confidence,
+            'image_url': image_url,
+            'identification_data': boat.identification_data,
+        })
+
+    return {
+        "results": results,
+        "total_count": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page,
+    }
+
+
+@router.post("/{boat_id}/like")
+async def like_boat(
+    boat_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Like a boat. Returns 409 if already liked."""
+    boat = db.query(BoatIdentification).filter(BoatIdentification.id == boat_id).first()
+    if not boat:
+        raise HTTPException(status_code=404, detail="Boat not found")
+
+    existing = (
+        db.query(LikedBoat)
+        .filter(LikedBoat.boat_id == boat_id, LikedBoat.user_id == current_user.id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Already liked")
+
+    db.add(LikedBoat(boat_id=boat_id, user_id=current_user.id))
+
+    popularity = db.query(BoatPopularity).filter(BoatPopularity.id == boat_id).first()
+    if popularity:
+        popularity.likes += 1
+    else:
+        db.add(BoatPopularity(id=boat_id, likes=1))
+
+    db.commit()
+    return {"success": True, "boat_id": boat_id, "action": "liked"}
+
+
+@router.delete("/{boat_id}/like")
+async def unlike_boat(
+    boat_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Unlike a boat. Returns 404 if not currently liked."""
+    existing = (
+        db.query(LikedBoat)
+        .filter(LikedBoat.boat_id == boat_id, LikedBoat.user_id == current_user.id)
+        .first()
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Not liked")
+
+    db.delete(existing)
+
+    popularity = db.query(BoatPopularity).filter(BoatPopularity.id == boat_id).first()
+    if popularity and popularity.likes > 0:
+        popularity.likes -= 1
+
+    db.commit()
+    return {"success": True, "boat_id": boat_id, "action": "unliked"}
+
 
 @router.get("/identifications/{identification_id}")
 async def get_boat_identification(

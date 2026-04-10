@@ -1,64 +1,143 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   useColorScheme,
+  FlatList,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { AuthService } from '../services/authService';
-import { BoatApiService, type BoatIdentificationListResponse } from '../services';
+import { BoatApiService } from '../services';
 
-interface ProfileScreenProps {
-  onViewAllBoats: () => void;
+interface ProfileScreenProps {}
+
+interface GridBoat {
+  id: string;
+  name: string;
+  image_url?: string;
+  make?: string;
+  boat_type?: string;
 }
 
-interface BoatStats {
-  total: number;
-  byType: Record<string, number>;
-}
+type TabType = 'posts' | 'liked';
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ onViewAllBoats }) => {
+const GRID_GAP = 4;
+const NUM_COLUMNS = 2;
+const screenWidth = Dimensions.get('window').width;
+const TILE_SIZE = (screenWidth - 40 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
+
+const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const isDarkMode = useColorScheme() === 'dark';
-  const [stats, setStats] = useState<BoatStats>({ total: 0, byType: {} });
+  const [activeTab, setActiveTab] = useState<TabType>('posts');
+  const [posts, setPosts] = useState<GridBoat[]>([]);
+  const [likedBoats, setLikedBoats] = useState<GridBoat[]>([]);
+  const [postsPage, setPostsPage] = useState(1);
+  const [likedPage, setLikedPage] = useState(1);
+  const [postsHasMore, setPostsHasMore] = useState(true);
+  const [likedHasMore, setLikedHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [postsTotalCount, setPostsTotalCount] = useState(0);
+  const [likedTotalCount, setLikedTotalCount] = useState(0);
 
   const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
   const textColor = isDarkMode ? '#ffffff' : '#333333';
   const subtextColor = isDarkMode ? '#aaaaaa' : '#666666';
-  const dividerColor = isDarkMode ? '#333333' : '#e0e0e0';
+  const tabActiveBg = '#2196f3';
+  const tabInactiveBg = isDarkMode ? '#333333' : '#e0e0e0';
 
   const user = AuthService.getUser();
 
-  useEffect(() => {
-    loadStats();
+  const loadPosts = useCallback(async (page: number, append: boolean = false) => {
+    try {
+      const data = await BoatApiService.getIdentifications(page, 8, { isBoat: true });
+      const mapped: GridBoat[] = data.results.map(item => ({
+        id: item.id.toString(),
+        name: item.identification_data?.model
+          ? `${item.identification_data.make || ''} ${item.identification_data.model}`.trim()
+          : item.identification_data?.make || 'Unknown Boat',
+        image_url: item.image_url || undefined,
+        make: item.identification_data?.make,
+        boat_type: item.identification_data?.boat_type,
+      }));
+      setPosts(prev => append ? [...prev, ...mapped] : mapped);
+      setPostsTotalCount(data.total_count);
+      setPostsHasMore(page < data.total_pages);
+    } catch (error) {
+      console.error('Failed to load posts:', error);
+    }
   }, []);
 
-  const loadStats = async () => {
-    setIsLoading(true);
+  const loadLikedBoats = useCallback(async (page: number, append: boolean = false) => {
     try {
-      // Fetch all identifications to compute stats
-      const data = await BoatApiService.getIdentifications(1, 100, { isBoat: true });
-      const byType: Record<string, number> = {};
-      for (const item of data.results) {
-        const boatType = item.identification_data?.boat_type || 'Unknown';
-        byType[boatType] = (byType[boatType] || 0) + 1;
-      }
-      setStats({ total: data.total_count, byType });
+      const data = await BoatApiService.getUserLikedBoats(page, 8);
+      const mapped: GridBoat[] = data.results.map(item => ({
+        id: item.id.toString(),
+        name: item.model
+          ? `${item.make || ''} ${item.model}`.trim()
+          : item.make || 'Unknown Boat',
+        image_url: item.image_url || undefined,
+        make: item.make || undefined,
+        boat_type: item.boat_type || undefined,
+      }));
+      setLikedBoats(prev => append ? [...prev, ...mapped] : mapped);
+      setLikedTotalCount(data.total_count);
+      setLikedHasMore(page < data.total_pages);
     } catch (error) {
-      console.error('Failed to load boat stats:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to load liked boats:', error);
     }
+  }, []);
+
+  useEffect(() => {
+    const init = async () => {
+      setIsLoading(true);
+      await Promise.all([loadPosts(1), loadLikedBoats(1)]);
+      setIsLoading(false);
+    };
+    init();
+  }, [loadPosts, loadLikedBoats]);
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    if (activeTab === 'posts' && postsHasMore) {
+      const nextPage = postsPage + 1;
+      await loadPosts(nextPage, true);
+      setPostsPage(nextPage);
+    } else if (activeTab === 'liked' && likedHasMore) {
+      const nextPage = likedPage + 1;
+      await loadLikedBoats(nextPage, true);
+      setLikedPage(nextPage);
+    }
+    setIsLoadingMore(false);
   };
 
-  const sortedTypes = Object.entries(stats.byType).sort((a, b) => b[1] - a[1]);
+  const currentData = activeTab === 'posts' ? posts : likedBoats;
+  const hasMore = activeTab === 'posts' ? postsHasMore : likedHasMore;
+  const totalCount = activeTab === 'posts' ? postsTotalCount : likedTotalCount;
 
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: bgColor }]} contentContainerStyle={styles.content}>
+  const renderGridItem = ({ item }: { item: GridBoat }) => (
+    <View style={[styles.gridItem, { backgroundColor: cardBg }]}>
+      {item.image_url ? (
+        <Image source={{ uri: item.image_url }} style={styles.gridImage} resizeMode="cover" />
+      ) : (
+        <View style={[styles.gridImage, styles.gridPlaceholder]}>
+          <Text style={styles.placeholderEmoji}>🚤</Text>
+        </View>
+      )}
+      <Text style={[styles.gridName, { color: textColor }]} numberOfLines={1}>
+        {item.name}
+      </Text>
+    </View>
+  );
+
+  const renderHeader = () => (
+    <View>
       {/* Avatar & Name */}
       <View style={[styles.profileCard, { backgroundColor: cardBg }]}>
         <View style={styles.avatar}>
@@ -68,49 +147,83 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onViewAllBoats }) => {
         </View>
         <Text style={[styles.username, { color: textColor }]}>{user?.username || 'Unknown'}</Text>
         <Text style={[styles.role, { color: subtextColor }]}>{user?.role || 'user'}</Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{postsTotalCount}</Text>
+            <Text style={[styles.statLabel, { color: subtextColor }]}>Posts</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{likedTotalCount}</Text>
+            <Text style={[styles.statLabel, { color: subtextColor }]}>Liked</Text>
+          </View>
+        </View>
       </View>
 
-      {/* Stats */}
-      <View style={[styles.statsCard, { backgroundColor: cardBg }]}>
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Boat Stats</Text>
-        <View style={[styles.divider, { backgroundColor: dividerColor }]} />
-
-        {isLoading ? (
-          <ActivityIndicator size="small" color="#2196f3" style={styles.loader} />
-        ) : (
-          <>
-            <View style={styles.totalRow}>
-              <Text style={[styles.totalLabel, { color: subtextColor }]}>Total Boats Identified</Text>
-              <Text style={[styles.totalValue, { color: textColor }]}>{stats.total}</Text>
-            </View>
-
-            {sortedTypes.length > 0 && (
-              <>
-                <View style={[styles.divider, { backgroundColor: dividerColor }]} />
-                <Text style={[styles.breakdownTitle, { color: subtextColor }]}>By Type</Text>
-                {sortedTypes.map(([type, count]) => (
-                  <View key={type} style={styles.typeRow}>
-                    <Text style={[styles.typeLabel, { color: textColor }]}>{type}</Text>
-                    <Text style={[styles.typeCount, { color: subtextColor }]}>{count}</Text>
-                  </View>
-                ))}
-              </>
-            )}
-          </>
-        )}
+      {/* Tabs */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, { backgroundColor: activeTab === 'posts' ? tabActiveBg : tabInactiveBg }]}
+          onPress={() => setActiveTab('posts')}>
+          <Text style={[styles.tabText, { color: activeTab === 'posts' ? '#fff' : textColor }]}>My Posts</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, { backgroundColor: activeTab === 'liked' ? tabActiveBg : tabInactiveBg }]}
+          onPress={() => setActiveTab('liked')}>
+          <Text style={[styles.tabText, { color: activeTab === 'liked' ? '#fff' : textColor }]}>Liked</Text>
+        </TouchableOpacity>
       </View>
+    </View>
+  );
 
-      {/* View All Boats Button */}
-      <TouchableOpacity style={styles.viewAllButton} onPress={onViewAllBoats} activeOpacity={0.8}>
-        <Text style={styles.viewAllText}>View All Boats</Text>
-      </TouchableOpacity>
-    </ScrollView>
+  const renderFooter = () => {
+    if (isLoadingMore) {
+      return <ActivityIndicator size="small" color="#2196f3" style={styles.footerLoader} />;
+    }
+    if (hasMore && currentData.length > 0) {
+      return (
+        <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
+          <Text style={styles.loadMoreText}>Load More</Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: bgColor }, styles.centered]}>
+        <ActivityIndicator size="large" color="#2196f3" />
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      style={[styles.container, { backgroundColor: bgColor }]}
+      contentContainerStyle={styles.content}
+      data={currentData}
+      keyExtractor={item => `${activeTab}-${item.id}`}
+      numColumns={NUM_COLUMNS}
+      columnWrapperStyle={styles.gridRow}
+      ListHeaderComponent={renderHeader}
+      ListFooterComponent={renderFooter}
+      ListEmptyComponent={
+        <Text style={[styles.emptyText, { color: subtextColor }]}>
+          {activeTab === 'posts' ? 'No boats posted yet' : 'No liked boats yet'}
+        </Text>
+      }
+      renderItem={renderGridItem}
+    />
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     padding: 20,
@@ -150,68 +263,87 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textTransform: 'capitalize',
   },
-  statsCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  divider: {
-    height: 1,
-    marginVertical: 12,
-  },
-  loader: {
-    marginVertical: 20,
-  },
-  totalRow: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 32,
+  },
+  statItem: {
     alignItems: 'center',
   },
-  totalLabel: {
-    fontSize: 15,
-  },
-  totalValue: {
-    fontSize: 28,
+  statNumber: {
+    fontSize: 20,
     fontWeight: 'bold',
   },
-  breakdownTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  statLabel: {
+    fontSize: 12,
+    marginTop: 2,
   },
-  typeRow: {
+  tabContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
+    marginBottom: 16,
+    gap: 8,
   },
-  typeLabel: {
-    fontSize: 15,
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
   },
-  typeCount: {
+  tabText: {
     fontSize: 15,
     fontWeight: '600',
   },
-  viewAllButton: {
-    paddingVertical: 14,
+  gridRow: {
+    justifyContent: 'space-between',
+    marginBottom: GRID_GAP,
+  },
+  gridItem: {
+    width: TILE_SIZE,
     borderRadius: 10,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  gridImage: {
+    width: '100%',
+    height: TILE_SIZE,
+  },
+  gridPlaceholder: {
+    backgroundColor: '#e0e0e0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderEmoji: {
+    fontSize: 36,
+  },
+  gridName: {
+    fontSize: 12,
+    fontWeight: '600',
+    padding: 8,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 40,
+    fontSize: 15,
+  },
+  footerLoader: {
+    marginVertical: 16,
+  },
+  loadMoreButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
     backgroundColor: '#2196f3',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
+    marginBottom: 16,
   },
-  viewAllText: {
+  loadMoreText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

@@ -38,5 +38,7 @@ def create_tables():
     """
     from models.user import User
     from models.boat import BoatIdentification
+    from models.boat_popularity import BoatPopularity
+    from models.liked_boat import LikedBoat
     
     Base.metadata.create_all(bind=engine)

@@ -11,9 +11,11 @@ export interface BoatCardData {
 
 interface BoatCardProps extends BoatCardData {
   onPress?: () => void;
+  isLiked?: boolean;
+  onLikeToggle?: (id: string) => void;
 }
 
-const BoatCard: React.FC<BoatCardProps> = ({name, type, make, image, onPress}) => {
+const BoatCard: React.FC<BoatCardProps> = ({id, name, type, make, image, onPress, isLiked, onLikeToggle}) => {
   const isDarkMode = useColorScheme() === 'dark';
 
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
@@ -25,13 +27,26 @@ const BoatCard: React.FC<BoatCardProps> = ({name, type, make, image, onPress}) =
       style={[styles.card, {backgroundColor: cardBg}]}
       onPress={onPress}
       activeOpacity={0.8}>
-      {image ? (
-        <Image source={image} style={styles.image} resizeMode="cover" />
-      ) : (
-        <View style={styles.imagePlaceholder}>
-          <Text style={styles.placeholderEmoji}>🚤</Text>
-        </View>
-      )}
+      <View>
+        {image ? (
+          <Image source={image} style={styles.image} resizeMode="cover" />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderEmoji}>🚤</Text>
+          </View>
+        )}
+        {onLikeToggle && (
+          <TouchableOpacity
+            style={styles.likeButton}
+            onPress={e => {
+              e.stopPropagation();
+              onLikeToggle(id);
+            }}
+            hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+            <Text style={styles.likeIcon}>{isLiked ? '♥' : '♡'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={styles.info}>
         <Text style={[styles.name, {color: textColor}]} numberOfLines={1}>
           {name}
@@ -68,6 +83,21 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: 100,
+  },
+  likeButton: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likeIcon: {
+    fontSize: 16,
+    color: '#ff4757',
   },
   placeholderEmoji: {
     fontSize: 36,

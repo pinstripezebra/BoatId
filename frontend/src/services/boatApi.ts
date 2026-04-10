@@ -79,6 +79,44 @@ export interface NearbyBoatsResponse {
   radius_km: number;
 }
 
+export interface PopularBoat {
+  id: number;
+  make: string | null;
+  model: string | null;
+  boat_type: string | null;
+  year_estimate: string | null;
+  confidence: string | null;
+  image_url: string;
+  likes: number;
+  identification_data: BoatDetails;
+}
+
+export interface PopularBoatsResponse {
+  results: PopularBoat[];
+  count: number;
+}
+
+export interface LikedBoatIdsResponse {
+  liked_boat_ids: number[];
+}
+
+export interface UserLikedBoatsResponse {
+  results: Array<{
+    id: number;
+    make: string | null;
+    model: string | null;
+    boat_type: string | null;
+    year_estimate: string | null;
+    confidence: string | null;
+    image_url: string;
+    identification_data: BoatDetails;
+  }>;
+  total_count: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
 export class BoatApiService {
   /**
    * Create FormData for file upload
@@ -187,6 +225,45 @@ export class BoatApiService {
       radius_km: radiusKm.toString(),
     });
     return await HttpClient.get<NearbyBoatsResponse>(`api/v1/boats/nearby?${queryParams.toString()}`);
+  }
+
+  /**
+   * Like a boat
+   */
+  static async likeBoat(boatId: number): Promise<void> {
+    await HttpClient.post(`api/v1/boats/${boatId}/like`, {});
+  }
+
+  /**
+   * Unlike a boat
+   */
+  static async unlikeBoat(boatId: number): Promise<void> {
+    await HttpClient.delete(`api/v1/boats/${boatId}/like`);
+  }
+
+  /**
+   * Get popular boats sorted by likes
+   */
+  static async getPopularBoats(limit: number = 5): Promise<PopularBoatsResponse> {
+    return await HttpClient.get<PopularBoatsResponse>(`api/v1/boats/popular?limit=${limit}`);
+  }
+
+  /**
+   * Get list of boat IDs the current user has liked
+   */
+  static async getLikedBoatIds(): Promise<LikedBoatIdsResponse> {
+    return await HttpClient.get<LikedBoatIdsResponse>('api/v1/boats/liked');
+  }
+
+  /**
+   * Get paginated boat details for boats the current user has liked
+   */
+  static async getUserLikedBoats(page: number = 1, perPage: number = 8): Promise<UserLikedBoatsResponse> {
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    });
+    return await HttpClient.get<UserLikedBoatsResponse>(`api/v1/boats/user-liked?${queryParams.toString()}`);
   }
 }
 

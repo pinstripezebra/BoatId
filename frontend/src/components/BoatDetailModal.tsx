@@ -21,9 +21,11 @@ interface BoatDetailModalProps {
   visible: boolean;
   boat: DetailBoatData | null;
   onClose: () => void;
+  isLiked?: boolean;
+  onLikeToggle?: (id: string) => void;
 }
 
-const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose}) => {
+const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose, isLiked, onLikeToggle}) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [imageError, setImageError] = React.useState(false);
 
@@ -58,7 +60,16 @@ const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose
             )}
 
             <View style={styles.content}>
-              <Text style={[styles.name, {color: textColor}]}>{boat.name}</Text>
+              <View style={styles.nameRow}>
+                <Text style={[styles.name, {color: textColor, flex: 1}]}>{boat.name}</Text>
+                {onLikeToggle && (
+                  <TouchableOpacity
+                    onPress={() => onLikeToggle(boat.id)}
+                    style={styles.likeButton}>
+                    <Text style={styles.likeIcon}>{isLiked ? '♥' : '♡'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               <View style={[styles.divider, {backgroundColor: dividerColor}]} />
 
@@ -136,6 +147,19 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 22,
     fontWeight: 'bold',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  likeButton: {
+    padding: 4,
+    marginLeft: 12,
+  },
+  likeIcon: {
+    fontSize: 24,
+    color: '#ff4757',
   },
   divider: {
     height: 1,

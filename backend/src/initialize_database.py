@@ -76,7 +76,21 @@ refresh_tokens_table_creation_query = """CREATE TABLE IF NOT EXISTS refresh_toke
     revoked BOOLEAN NOT NULL DEFAULT FALSE
     )"""
 
+boat_popularity_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_popularity (
+    id INTEGER PRIMARY KEY REFERENCES boat_identifications(id),
+    likes INTEGER NOT NULL DEFAULT 0
+    )"""
+
+liked_boats_table_creation_query = """CREATE TABLE IF NOT EXISTS liked_boats (
+    id SERIAL PRIMARY KEY,
+    boat_id INTEGER NOT NULL REFERENCES boat_identifications(id),
+    user_id UUID NOT NULL REFERENCES users(id),
+    CONSTRAINT uq_liked_boat_user UNIQUE (boat_id, user_id)
+    )"""
+
 # Deleting tables if they already exist
+engine.delete_table('liked_boats')
+engine.delete_table('boat_popularity')
 engine.delete_table('refresh_tokens')
 engine.delete_table('boat_identifications')
 engine.delete_table('users')
@@ -117,6 +131,8 @@ if 'id' not in users.columns:
 engine.create_table(users_table_creation_query)
 engine.create_table(boat_identifications_table_creation_query)
 engine.create_table(refresh_tokens_table_creation_query)
+engine.create_table(boat_popularity_table_creation_query)
+engine.create_table(liked_boats_table_creation_query)
 
 # Create indexes for better performance using individual calls
 index_queries = [
@@ -131,6 +147,8 @@ index_queries = [
     "CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON refresh_tokens (user_id);",
     "CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens (token_hash);",
     "CREATE INDEX IF NOT EXISTS idx_boat_location ON boat_identifications (latitude, longitude);",
+    "CREATE INDEX IF NOT EXISTS idx_liked_boats_user_id ON liked_boats (user_id);",
+    "CREATE INDEX IF NOT EXISTS idx_liked_boats_boat_id ON liked_boats (boat_id);",
 ]
 
 for index_query in index_queries:
@@ -388,6 +406,41 @@ sample_boat_data = pd.DataFrame([
 # Populate boats table with sample data
 engine.populate_table_dynamic(sample_boat_data, 'boat_identifications')
 
+# Seed liked_boats for the 10 CSV users (not admin)
+# Each user likes between 1-5 random boats from the 15 sample boats
+csv_user_ids = users['id'].tolist()[:10]  # First 10 are CSV users, admin is last
+boat_ids = list(range(1, 16))  # Boats have IDs 1-15 (SERIAL)
+
+liked_rows = []
+for user_id in csv_user_ids:
+    num_likes = random.randint(1, 5)
+    liked_boat_ids = random.sample(boat_ids, num_likes)
+    for bid in liked_boat_ids:
+        liked_rows.append({'boat_id': bid, 'user_id': user_id})
+
+liked_boats_df = pd.DataFrame(liked_rows)
+engine.populate_table_dynamic(liked_boats_df, 'liked_boats')
+
+# Populate boat_popularity by aggregating likes directly from the database
+# This ensures the counts match what's actually in liked_boats
+populate_popularity_query = """
+INSERT INTO boat_popularity (id, likes)
+SELECT bi.id, COALESCE(lb.like_count, 0)
+FROM boat_identifications bi
+LEFT JOIN (
+    SELECT boat_id, COUNT(*) as like_count
+    FROM liked_boats
+    GROUP BY boat_id
+) lb ON bi.id = lb.boat_id
+"""
+try:
+    engine.create_table(populate_popularity_query)
+    print("Successfully populated boat_popularity table from liked_boats aggregation")
+except Exception as e:
+    print(f"Error populating boat_popularity: {e}")
+
 # Testing if the tables were created and populated correctly
 print(engine.test_table('users'))
 print(engine.test_table('boat_identifications'))
+print(engine.test_table('liked_boats'))
+print(engine.test_table('boat_popularity'))

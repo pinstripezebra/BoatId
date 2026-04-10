@@ -76,4 +76,8 @@ export class HttpClient {
       body: formData
     });
   }
+
+  static async delete<T>(endpoint: string): Promise<T> {
+    return this.makeRequest<T>(endpoint, { method: 'DELETE' });
+  }
 }
