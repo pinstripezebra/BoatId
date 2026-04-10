@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -240,10 +241,14 @@ async def login_for_access_token(
             )
 
         if not user.email_verified:
-            raise HTTPException(
+            code = generate_verification_code()
+            user.verification_code = code
+            user.verification_code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+            db.commit()
+            send_verification_email(user.email, code)
+            return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified",
-                headers={"X-Email": user.email},
+                content={"detail": "Email not verified", "email": user.email}
             )
         
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -293,10 +298,14 @@ async def login_user(
             )
 
         if not user.email_verified:
-            raise HTTPException(
+            code = generate_verification_code()
+            user.verification_code = code
+            user.verification_code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+            db.commit()
+            send_verification_email(user.email, code)
+            return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified",
-                headers={"X-Email": user.email},
+                content={"detail": "Email not verified", "email": user.email}
             )
         
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

@@ -67,6 +67,11 @@ export class AuthService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      if (response.status === 403 && error.email) {
+        const err = new Error(error.detail || 'Email not verified');
+        (err as any).email = error.email;
+        throw err;
+      }
       throw new Error(error.detail || 'Login failed');
     }
 

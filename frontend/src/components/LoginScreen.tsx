@@ -69,7 +69,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
     } catch (error) {
       const message = error instanceof Error ? error.message : 'An error occurred';
       if (message === 'Email not verified') {
-        onNeedsVerification(email.trim());
+        const userEmail = (error as any).email || email.trim();
+        if (userEmail) {
+          onNeedsVerification(userEmail);
+        } else {
+          Alert.alert('Error', 'Email not verified. Please register again.');
+        }
       } else {
         Alert.alert('Error', message);
       }

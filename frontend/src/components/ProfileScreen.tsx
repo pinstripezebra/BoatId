@@ -193,38 +193,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
         </View>
       </View>
 
-      {/* Settings Dropdown */}
-      {showSettingsMenu && (
-        <View style={[styles.settingsDropdown, { backgroundColor: cardBg }]}>
-          <TouchableOpacity
-            style={styles.settingsItem}
-            onPress={() => {
-              setShowSettingsMenu(false);
-              setShowPrivacyPolicy(true);
-            }}>
-            <Text style={[styles.settingsItemText, { color: textColor }]}>Privacy Policy</Text>
-          </TouchableOpacity>
-          <View style={[styles.settingsDivider, { backgroundColor: isDarkMode ? '#444' : '#e0e0e0' }]} />
-          <TouchableOpacity
-            style={styles.settingsItem}
-            onPress={() => {
-              setShowSettingsMenu(false);
-              onLogout();
-            }}>
-            <Text style={[styles.settingsItemText, { color: textColor }]}>Sign Out</Text>
-          </TouchableOpacity>
-          <View style={[styles.settingsDivider, { backgroundColor: isDarkMode ? '#444' : '#e0e0e0' }]} />
-          <TouchableOpacity
-            style={styles.settingsItem}
-            onPress={() => {
-              setShowSettingsMenu(false);
-              setShowDeleteModal(true);
-            }}>
-            <Text style={[styles.settingsItemText, { color: '#f44336' }]}>Delete Account</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -271,7 +239,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
     <>
       {showSettingsMenu && (
         <TouchableWithoutFeedback onPress={() => setShowSettingsMenu(false)}>
-          <View style={styles.settingsOverlay} />
+          <View style={styles.settingsOverlay}>
+            <View style={[styles.settingsDropdown, { backgroundColor: cardBg }]}>
+              <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => {
+                  setShowSettingsMenu(false);
+                  setShowPrivacyPolicy(true);
+                }}>
+                <Text style={[styles.settingsItemText, { color: textColor }]}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <View style={[styles.settingsDivider, { backgroundColor: isDarkMode ? '#444' : '#e0e0e0' }]} />
+              <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => {
+                  setShowSettingsMenu(false);
+                  onLogout();
+                }}>
+                <Text style={[styles.settingsItemText, { color: textColor }]}>Sign Out</Text>
+              </TouchableOpacity>
+              <View style={[styles.settingsDivider, { backgroundColor: isDarkMode ? '#444' : '#e0e0e0' }]} />
+              <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => {
+                  setShowSettingsMenu(false);
+                  setShowDeleteModal(true);
+                }}>
+                <Text style={[styles.settingsItemText, { color: '#f44336' }]}>Delete Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </TouchableWithoutFeedback>
       )}
       <FlatList
@@ -499,19 +496,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 5,
+    zIndex: 10,
+    alignItems: 'flex-end',
   },
   settingsDropdown: {
-    position: 'absolute',
-    top: 52,
-    right: 0,
+    marginTop: 52,
+    marginRight: 16,
     borderRadius: 10,
     elevation: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
-    zIndex: 10,
     minWidth: 180,
   },
   settingsItem: {
