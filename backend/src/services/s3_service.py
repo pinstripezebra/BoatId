@@ -20,7 +20,7 @@ class S3Service:
         try:
             # Generate unique filename
             file_extension = content_type.split('/')[-1]
-            filename = f"boat-images/{uuid.uuid4()}.{file_extension}"
+            filename = f"car-images/{uuid.uuid4()}.{file_extension}"
             
             # Upload to S3
             self.s3_client.put_object(

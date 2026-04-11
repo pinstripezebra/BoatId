@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
-import { BoatApiService } from '../services';
-import type { NearbyBoat } from '../services';
-import type { DetailBoatData } from './BoatDetailModal';
+import { CarApiService } from '../services';
+import type { NearbyCar } from '../services';
+import type { DetailCarData } from './CarDetailModal';
 
 interface MapScreenProps {
-  onBoatPress: (boat: DetailBoatData) => void;
+  onCarPress: (car: DetailCarData) => void;
 }
 
 const DEFAULT_REGION: Region = {
@@ -26,11 +26,11 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.5,
 };
 
-const MapScreen: React.FC<MapScreenProps> = ({ onBoatPress }) => {
+const MapScreen: React.FC<MapScreenProps> = ({ onCarPress }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const mapRef = useRef<MapView>(null);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
-  const [boats, setBoats] = useState<NearbyBoat[]>([]);
+  const [cars, setCars] = useState<NearbyCar[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
 
@@ -39,14 +39,14 @@ const MapScreen: React.FC<MapScreenProps> = ({ onBoatPress }) => {
     return Math.max((r.latitudeDelta * 111) / 2, 1);
   };
 
-  const fetchNearbyBoats = useCallback(async (r: Region) => {
+  const fetchNearbyCars = useCallback(async (r: Region) => {
     setLoading(true);
     try {
       const radiusKm = regionToRadiusKm(r);
-      const data = await BoatApiService.getNearbyBoats(r.latitude, r.longitude, radiusKm);
-      setBoats(data.results);
+      const data = await CarApiService.getNearbyCars(r.latitude, r.longitude, radiusKm);
+      setCars(data.results);
     } catch (error) {
-      console.error('Failed to fetch nearby boats:', error);
+      console.error('Failed to fetch nearby cars:', error);
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ onBoatPress }) => {
           );
           if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
             setInitialLoad(false);
-            fetchNearbyBoats(DEFAULT_REGION);
+            fetchNearbyCars(DEFAULT_REGION);
             return;
           }
         }
@@ -76,42 +76,42 @@ const MapScreen: React.FC<MapScreenProps> = ({ onBoatPress }) => {
             };
             setRegion(userRegion);
             setInitialLoad(false);
-            fetchNearbyBoats(userRegion);
+            fetchNearbyCars(userRegion);
           },
           () => {
             setInitialLoad(false);
-            fetchNearbyBoats(DEFAULT_REGION);
+            fetchNearbyCars(DEFAULT_REGION);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
         );
       } catch {
         setInitialLoad(false);
-        fetchNearbyBoats(DEFAULT_REGION);
+        fetchNearbyCars(DEFAULT_REGION);
       }
     };
     getLocation();
-  }, [fetchNearbyBoats]);
+  }, [fetchNearbyCars]);
 
   const handleRefresh = () => {
-    fetchNearbyBoats(region);
+    fetchNearbyCars(region);
   };
 
   const handleRegionChangeComplete = (newRegion: Region) => {
     setRegion(newRegion);
   };
 
-  const handleMarkerPress = (boat: NearbyBoat) => {
-    const detailData: DetailBoatData = {
-      id: boat.id.toString(),
-      name: boat.model
-        ? `${boat.make || ''} ${boat.model}`.trim()
-        : boat.make || 'Unknown Boat',
-      make: boat.make || undefined,
-      type: boat.boat_type || undefined,
-      model: boat.model || undefined,
-      image: boat.image_url ? { uri: boat.image_url } : undefined,
+  const handleMarkerPress = (car: NearbyCar) => {
+    const detailData: DetailCarData = {
+      id: car.id.toString(),
+      name: car.model
+        ? `${car.make || ''} ${car.model}`.trim()
+        : car.make || 'Unknown Car',
+      make: car.make || undefined,
+      type: car.car_type || undefined,
+      model: car.model || undefined,
+      image: car.image_url ? { uri: car.image_url } : undefined,
     };
-    onBoatPress(detailData);
+    onCarPress(detailData);
   };
 
   if (initialLoad) {
@@ -135,13 +135,13 @@ const MapScreen: React.FC<MapScreenProps> = ({ onBoatPress }) => {
         showsMyLocationButton
         onRegionChangeComplete={handleRegionChangeComplete}
       >
-        {boats.map((boat) => (
+        {cars.map((car) => (
           <Marker
-            key={boat.id}
-            coordinate={{ latitude: boat.latitude, longitude: boat.longitude }}
-            title={boat.make || 'Boat'}
-            description={boat.boat_type || undefined}
-            onPress={() => handleMarkerPress(boat)}
+            key={car.id}
+            coordinate={{ latitude: car.latitude, longitude: car.longitude }}
+            title={car.make || 'Car'}
+            description={car.car_type || undefined}
+            onPress={() => handleMarkerPress(car)}
           />
         ))}
       </MapView>
@@ -160,7 +160,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ onBoatPress }) => {
 
       <View style={styles.countBadge}>
         <Text style={styles.countText}>
-          {boats.length} boat{boats.length !== 1 ? 's' : ''} nearby
+          {cars.length} car{cars.length !== 1 ? 's' : ''} nearby
         </Text>
       </View>
     </View>

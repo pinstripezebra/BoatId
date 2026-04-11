@@ -33,34 +33,39 @@ back_end_dir = os.path.dirname(current_file_dir)  # /back_end
 project_root = os.path.dirname(back_end_dir)  # /project_root
 
 users = pd.read_csv(os.path.join(project_root, 'data', 'users.csv'))
-# Note: boats.csv is no longer used as we're creating sample data directly
+# Note: cars.csv is no longer used as we're creating sample data directly
 
 # Defining queries to create tables
 users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    verification_code VARCHAR(6),
+    verification_code_expires_at TIMESTAMP WITH TIME ZONE,
+    reset_code VARCHAR(6),
+    reset_code_expires_at TIMESTAMP WITH TIME ZONE,
     role VARCHAR(20) NOT NULL,
     location VARCHAR(255),
     phone_number VARCHAR(20),
     description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
     """
 
-boat_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_identifications (
+car_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS car_identifications (
     id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES users(id),
     image_filename VARCHAR(255) NOT NULL,
     s3_image_key VARCHAR(500) NOT NULL,
-    is_boat BOOLEAN NOT NULL,
+    is_car BOOLEAN NOT NULL,
     confidence VARCHAR(10),
     identification_data JSON NOT NULL,
     make VARCHAR(100),
     model VARCHAR(100),
-    boat_type VARCHAR(50),
+    car_type VARCHAR(50),
     year_estimate VARCHAR(20),
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
@@ -77,23 +82,26 @@ refresh_tokens_table_creation_query = """CREATE TABLE IF NOT EXISTS refresh_toke
     revoked BOOLEAN NOT NULL DEFAULT FALSE
     )"""
 
-boat_popularity_table_creation_query = """CREATE TABLE IF NOT EXISTS boat_popularity (
-    id INTEGER PRIMARY KEY REFERENCES boat_identifications(id),
+car_popularity_table_creation_query = """CREATE TABLE IF NOT EXISTS car_popularity (
+    id INTEGER PRIMARY KEY REFERENCES car_identifications(id),
     likes INTEGER NOT NULL DEFAULT 0
     )"""
 
-liked_boats_table_creation_query = """CREATE TABLE IF NOT EXISTS liked_boats (
+liked_cars_table_creation_query = """CREATE TABLE IF NOT EXISTS liked_cars (
     id SERIAL PRIMARY KEY,
-    boat_id INTEGER NOT NULL REFERENCES boat_identifications(id),
+    car_id INTEGER NOT NULL REFERENCES car_identifications(id),
     user_id UUID NOT NULL REFERENCES users(id),
-    CONSTRAINT uq_liked_boat_user UNIQUE (boat_id, user_id)
+    CONSTRAINT uq_liked_car_user UNIQUE (car_id, user_id)
     )"""
 
-# Deleting tables if they already exist
+# Deleting tables if they already exist (including old boat-named tables from before rename)
 engine.delete_table('liked_boats')
 engine.delete_table('boat_popularity')
-engine.delete_table('refresh_tokens')
 engine.delete_table('boat_identifications')
+engine.delete_table('liked_cars')
+engine.delete_table('car_popularity')
+engine.delete_table('refresh_tokens')
+engine.delete_table('car_identifications')
 engine.delete_table('users')
 
 # Initialize password context for hashing
@@ -118,7 +126,7 @@ admin_user = pd.DataFrame([{
     'location': None,
     'phone_number': None,
 
-    'description': 'Administrator user for BoatId system'
+    'description': 'Administrator user for CarId system'
 }])
 
 # Concatenate admin user with existing users
@@ -131,27 +139,27 @@ if 'id' not in users.columns:
 
 # Create tables
 engine.create_table(users_table_creation_query)
-engine.create_table(boat_identifications_table_creation_query)
+engine.create_table(car_identifications_table_creation_query)
 engine.create_table(refresh_tokens_table_creation_query)
-engine.create_table(boat_popularity_table_creation_query)
-engine.create_table(liked_boats_table_creation_query)
+engine.create_table(car_popularity_table_creation_query)
+engine.create_table(liked_cars_table_creation_query)
 
 # Create indexes for better performance using individual calls
 index_queries = [
-    "CREATE INDEX IF NOT EXISTS idx_boat_make_model ON boat_identifications (make, model);",
-    "CREATE INDEX IF NOT EXISTS idx_boat_type_confidence ON boat_identifications (boat_type, confidence);",
-    "CREATE INDEX IF NOT EXISTS idx_created_boat ON boat_identifications (created_at, is_boat);",
-    "CREATE INDEX IF NOT EXISTS idx_is_boat ON boat_identifications (is_boat);",
-    "CREATE INDEX IF NOT EXISTS idx_confidence ON boat_identifications (confidence);",
-    "CREATE INDEX IF NOT EXISTS idx_make ON boat_identifications (make);",
-    "CREATE INDEX IF NOT EXISTS idx_model ON boat_identifications (model);",
-    "CREATE INDEX IF NOT EXISTS idx_boat_type ON boat_identifications (boat_type);",
+    "CREATE INDEX IF NOT EXISTS idx_car_make_model ON car_identifications (make, model);",
+    "CREATE INDEX IF NOT EXISTS idx_car_type_confidence ON car_identifications (car_type, confidence);",
+    "CREATE INDEX IF NOT EXISTS idx_created_car ON car_identifications (created_at, is_car);",
+    "CREATE INDEX IF NOT EXISTS idx_is_car ON car_identifications (is_car);",
+    "CREATE INDEX IF NOT EXISTS idx_confidence ON car_identifications (confidence);",
+    "CREATE INDEX IF NOT EXISTS idx_make ON car_identifications (make);",
+    "CREATE INDEX IF NOT EXISTS idx_model ON car_identifications (model);",
+    "CREATE INDEX IF NOT EXISTS idx_car_type ON car_identifications (car_type);",
     "CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON refresh_tokens (user_id);",
     "CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens (token_hash);",
-    "CREATE INDEX IF NOT EXISTS idx_boat_location ON boat_identifications (latitude, longitude);",
-    "CREATE INDEX IF NOT EXISTS idx_liked_boats_user_id ON liked_boats (user_id);",
-    "CREATE INDEX IF NOT EXISTS idx_liked_boats_boat_id ON liked_boats (boat_id);",
-    "CREATE INDEX IF NOT EXISTS idx_boat_search_vector ON boat_identifications USING GIN (search_vector);",
+    "CREATE INDEX IF NOT EXISTS idx_car_location ON car_identifications (latitude, longitude);",
+    "CREATE INDEX IF NOT EXISTS idx_liked_cars_user_id ON liked_cars (user_id);",
+    "CREATE INDEX IF NOT EXISTS idx_liked_cars_car_id ON liked_cars (car_id);",
+    "CREATE INDEX IF NOT EXISTS idx_car_search_vector ON car_identifications USING GIN (search_vector);",
 ]
 
 for index_query in index_queries:
@@ -162,12 +170,12 @@ for index_query in index_queries:
 
 # Create trigger to auto-populate search_vector on insert/update
 search_vector_trigger_func = """
-CREATE OR REPLACE FUNCTION boat_search_vector_update() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION car_search_vector_update() RETURNS trigger AS $$
 BEGIN
     NEW.search_vector :=
         setweight(to_tsvector('english', COALESCE(NEW.make, '')), 'A') ||
         setweight(to_tsvector('english', COALESCE(NEW.model, '')), 'A') ||
-        setweight(to_tsvector('english', COALESCE(NEW.boat_type, '')), 'B') ||
+        setweight(to_tsvector('english', COALESCE(NEW.car_type, '')), 'B') ||
         setweight(to_tsvector('english', COALESCE(NEW.identification_data::json->>'description', '')), 'C');
     RETURN NEW;
 END;
@@ -175,10 +183,10 @@ $$ LANGUAGE plpgsql;
 """
 
 search_vector_trigger = """
-DROP TRIGGER IF EXISTS trg_boat_search_vector ON boat_identifications;
-CREATE TRIGGER trg_boat_search_vector
-    BEFORE INSERT OR UPDATE ON boat_identifications
-    FOR EACH ROW EXECUTE FUNCTION boat_search_vector_update();
+DROP TRIGGER IF EXISTS trg_car_search_vector ON car_identifications;
+CREATE TRIGGER trg_car_search_vector
+    BEFORE INSERT OR UPDATE ON car_identifications
+    FOR EACH ROW EXECUTE FUNCTION car_search_vector_update();
 """
 
 try:
@@ -192,286 +200,211 @@ except Exception as e:
 engine.populate_table_dynamic(users, 'users')
 
 import random
+import asyncio
+import json
+import glob
+from image_identification import AnthropicCarIdentifier
 
-# Coastal US coordinate ranges for realistic test data
-coastal_locations = [
-    (25.76, -80.19),   # Miami, FL
-    (32.71, -117.16),  # San Diego, CA
-    (37.00, -76.00),   # Chesapeake Bay, VA
-    (27.77, -82.64),   # Tampa Bay, FL
-    (30.33, -81.66),   # Jacksonville, FL
-    (29.95, -90.07),   # New Orleans, LA
-    (33.77, -118.19),  # Long Beach, CA
+# US city coordinate ranges for realistic test data
+city_locations = [
+    (34.05, -118.24),  # Los Angeles, CA
+    (40.71, -74.01),   # New York, NY
+    (41.88, -87.63),   # Chicago, IL
+    (29.76, -95.37),   # Houston, TX
+    (33.45, -112.07),  # Phoenix, AZ
+    (39.74, -104.99),  # Denver, CO
     (47.61, -122.34),  # Seattle, WA
+    (25.76, -80.19),   # Miami, FL
+    (42.36, -71.06),   # Boston, MA
+    (38.91, -77.04),   # Washington, DC
+    (37.77, -122.42),  # San Francisco, CA
+    (32.72, -117.16),  # San Diego, CA
+    (36.17, -115.14),  # Las Vegas, NV
+    (30.27, -97.74),   # Austin, TX
+    (35.23, -80.84),   # Charlotte, NC
+    (45.52, -122.68),  # Portland, OR
+    (39.95, -75.17),   # Philadelphia, PA
+    (44.98, -93.27),   # Minneapolis, MN
+    (35.47, -97.52),   # Oklahoma City, OK
+    (36.16, -86.78),   # Nashville, TN
 ]
 
-def random_coastal_coord():
-    base_lat, base_lng = random.choice(coastal_locations)
+def random_city_coord():
+    base_lat, base_lng = random.choice(city_locations)
     return round(base_lat + random.uniform(-0.1, 0.1), 6), round(base_lng + random.uniform(-0.1, 0.1), 6)
 
-lat1, lng1 = random_coastal_coord()
-lat2, lng2 = random_coastal_coord()
-lat3, lng3 = random_coastal_coord()
-lat4, lng4 = random_coastal_coord()
-lat5, lng5 = random_coastal_coord()
+# --- Identification cache ---
+# Cache file stores AI identification results so we don't re-call the API for
+# images that have already been identified. Keyed by filename.
+CACHE_FILE = os.path.join(current_file_dir, '.identification_cache.json')
 
-# West coast specific locations for boats 6-15
-west_coast_locations = [
-    (48.54, -123.02),  # San Juan Islands, WA
-    (47.65, -122.45),  # Puget Sound, WA
-    (45.60, -123.96),  # Oregon Coast
-    (43.35, -124.22),  # Coos Bay, OR
-    (40.80, -124.16),  # Humboldt Bay, CA
-    (37.82, -122.48),  # San Francisco Bay, CA
-    (36.62, -121.90),  # Monterey Bay, CA
-    (34.41, -119.69),  # Santa Barbara, CA
-    (33.86, -118.40),  # Marina del Rey, CA
-    (32.72, -117.17),  # San Diego Bay, CA
-]
+def load_cache() -> dict:
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r') as f:
+            return json.load(f)
+    return {}
 
-def west_coast_coord(idx):
-    base_lat, base_lng = west_coast_locations[idx]
-    return round(base_lat + random.uniform(-0.05, 0.05), 6), round(base_lng + random.uniform(-0.05, 0.05), 6)
+def save_cache(cache: dict):
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(cache, f, indent=2)
 
-wc_coords = [west_coast_coord(i) for i in range(10)]
+# Initialize the car identifier with Anthropic API
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+if not api_key:
+    print("ERROR: ANTHROPIC_API_KEY not set. Cannot identify car images.")
+    exit(1)
 
-# Create sample boat identification data using actual images uploaded to S3
-sample_boat_data = pd.DataFrame([
-    {
-        'image_filename': 'boat1.png',
-        's3_image_key': 'boat-images/boat1.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Beneteau", "model": "Oceanis 40.1", "description": "White fiberglass sailboat with blue trim", "boat_type": "sailboat", "confidence": "high", "length": "40", "features": ["roller furling", "wheel steering", "bimini top"]}',
-        'make': 'Beneteau',
-        'model': 'Oceanis 40.1',
-        'boat_type': 'sailboat',
-        'year_estimate': '2020',
-        'latitude': lat1,
-        'longitude': lng1
-    },
-    {
-        'image_filename': 'boat2.png',
-        's3_image_key': 'boat-images/boat2.png',
-        'is_boat': True,
-        'confidence': 'medium',
-        'identification_data': '{"make": "Sea Ray", "model": "Sundancer 350", "description": "White powerboat with hardtop", "boat_type": "motorboat", "confidence": "medium", "length": "35", "features": ["hardtop", "outriggers"]}',
-        'make': 'Sea Ray',
-        'model': 'Sundancer 350',
-        'boat_type': 'motorboat',
-        'year_estimate': '2019',
-        'latitude': lat2,
-        'longitude': lng2
-    },
-    {
-        'image_filename': 'boat3.png',
-        's3_image_key': 'boat-images/boat3.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Boston Whaler", "model": "Montauk 170", "description": "Classic center console fishing boat", "boat_type": "fishing boat", "confidence": "high", "length": "17", "features": ["center console", "rod holders", "live well"]}',
-        'make': 'Boston Whaler',
-        'model': 'Montauk 170',
-        'boat_type': 'fishing boat',
-        'year_estimate': '2021',
-        'latitude': lat3,
-        'longitude': lng3
-    },
-    {
-        'image_filename': 'boat4.png',
-        's3_image_key': 'boat-images/boat4.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Yamaha", "model": "252S", "description": "Sport jet boat with twin engines", "boat_type": "jet boat", "confidence": "high", "length": "25", "features": ["twin jet drives", "wakeboard tower", "swim platform"]}',
-        'make': 'Yamaha',
-        'model': '252S',
-        'boat_type': 'jet boat',
-        'year_estimate': '2022',
-        'latitude': lat4,
-        'longitude': lng4
-    },
-    {
-        'image_filename': 'boat5.png',
-        's3_image_key': 'boat-images/boat5.png',
-        'is_boat': True,
-        'confidence': 'medium',
-        'identification_data': '{"make": "Mastercraft", "model": "X24", "description": "Premium wakeboard and surf boat", "boat_type": "wakeboard boat", "confidence": "medium", "length": "24", "features": ["surf system", "tower speakers", "ballast tanks"]}',
-        'make': 'Mastercraft',
-        'model': 'X24',
-        'boat_type': 'wakeboard boat',
-        'year_estimate': '2023',
-        'latitude': lat5,
-        'longitude': lng5
-    },
-    {
-        'image_filename': 'boat6.png',
-        's3_image_key': 'boat-images/boat6.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Catalina", "model": "355", "description": "Classic cruising sailboat with roller furling", "boat_type": "sailboat", "confidence": "high", "length": "35", "features": ["roller furling", "dodger", "autopilot"]}',
-        'make': 'Catalina',
-        'model': '355',
-        'boat_type': 'sailboat',
-        'year_estimate': '2018',
-        'latitude': wc_coords[0][0],
-        'longitude': wc_coords[0][1]
-    },
-    {
-        'image_filename': 'boat7.png',
-        's3_image_key': 'boat-images/boat7.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Grady-White", "model": "Freedom 271", "description": "Dual console fishing boat with T-top", "boat_type": "fishing boat", "confidence": "high", "length": "27", "features": ["T-top", "live well", "rod holders", "fish boxes"]}',
-        'make': 'Grady-White',
-        'model': 'Freedom 271',
-        'boat_type': 'fishing boat',
-        'year_estimate': '2021',
-        'latitude': wc_coords[1][0],
-        'longitude': wc_coords[1][1]
-    },
-    {
-        'image_filename': 'boat8.png',
-        's3_image_key': 'boat-images/boat8.png',
-        'is_boat': True,
-        'confidence': 'medium',
-        'identification_data': '{"make": "Chaparral", "model": "267 SSX", "description": "Sport bowrider with extended swim platform", "boat_type": "bowrider", "confidence": "medium", "length": "27", "features": ["swim platform", "wakeboard tower", "snap-in carpet"]}',
-        'make': 'Chaparral',
-        'model': '267 SSX',
-        'boat_type': 'bowrider',
-        'year_estimate': '2020',
-        'latitude': wc_coords[2][0],
-        'longitude': wc_coords[2][1]
-    },
-    {
-        'image_filename': 'boat9.png',
-        's3_image_key': 'boat-images/boat9.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Ranger", "model": "Z521L", "description": "High-performance bass fishing boat", "boat_type": "bass boat", "confidence": "high", "length": "21", "features": ["trolling motor", "fish finder", "rod storage", "live well"]}',
-        'make': 'Ranger',
-        'model': 'Z521L',
-        'boat_type': 'bass boat',
-        'year_estimate': '2022',
-        'latitude': wc_coords[3][0],
-        'longitude': wc_coords[3][1]
-    },
-    {
-        'image_filename': 'boat10.png',
-        's3_image_key': 'boat-images/boat10.png',
-        'is_boat': True,
-        'confidence': 'medium',
-        'identification_data': '{"make": "Malibu", "model": "23 LSV", "description": "Wakeboard and surf boat with ballast system", "boat_type": "wakeboard boat", "confidence": "medium", "length": "23", "features": ["surf gate", "tower", "ballast system", "touchscreen dash"]}',
-        'make': 'Malibu',
-        'model': '23 LSV',
-        'boat_type': 'wakeboard boat',
-        'year_estimate': '2023',
-        'latitude': wc_coords[4][0],
-        'longitude': wc_coords[4][1]
-    },
-    {
-        'image_filename': 'boat11.png',
-        's3_image_key': 'boat-images/boat11.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Hatteras", "model": "GT54", "description": "Luxury sportfishing yacht with flybridge", "boat_type": "sportfish yacht", "confidence": "high", "length": "54", "features": ["flybridge", "fighting chair", "tuna tower", "air conditioning"]}',
-        'make': 'Hatteras',
-        'model': 'GT54',
-        'boat_type': 'sportfish yacht',
-        'year_estimate': '2019',
-        'latitude': wc_coords[5][0],
-        'longitude': wc_coords[5][1]
-    },
-    {
-        'image_filename': 'boat12.png',
-        's3_image_key': 'boat-images/boat12.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Hobie", "model": "Cat 16", "description": "Classic racing catamaran with colorful sails", "boat_type": "catamaran", "confidence": "high", "length": "16", "features": ["trampoline deck", "jib sail", "rotating mast"]}',
-        'make': 'Hobie',
-        'model': 'Cat 16',
-        'boat_type': 'catamaran',
-        'year_estimate': '2017',
-        'latitude': wc_coords[6][0],
-        'longitude': wc_coords[6][1]
-    },
-    {
-        'image_filename': 'boat13.png',
-        's3_image_key': 'boat-images/boat13.png',
-        'is_boat': True,
-        'confidence': 'medium',
-        'identification_data': '{"make": "Chris-Craft", "model": "Launch 30", "description": "Heritage-style mahogany cruiser", "boat_type": "cruiser", "confidence": "medium", "length": "30", "features": ["teak swim platform", "heritage styling", "cabin berth"]}',
-        'make': 'Chris-Craft',
-        'model': 'Launch 30',
-        'boat_type': 'cruiser',
-        'year_estimate': '2021',
-        'latitude': wc_coords[7][0],
-        'longitude': wc_coords[7][1]
-    },
-    {
-        'image_filename': 'boat14.png',
-        's3_image_key': 'boat-images/boat14.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Fountain", "model": "38CC", "description": "Offshore center console with triple outboards", "boat_type": "center console", "confidence": "high", "length": "38", "features": ["triple outboards", "T-top", "leaning post", "insulated fish boxes"]}',
-        'make': 'Fountain',
-        'model': '38CC',
-        'boat_type': 'center console',
-        'year_estimate': '2020',
-        'latitude': wc_coords[8][0],
-        'longitude': wc_coords[8][1]
-    },
-    {
-        'image_filename': 'boat15.png',
-        's3_image_key': 'boat-images/boat15.png',
-        'is_boat': True,
-        'confidence': 'high',
-        'identification_data': '{"make": "Sunseeker", "model": "Predator 50", "description": "Luxury performance motor yacht", "boat_type": "motor yacht", "confidence": "high", "length": "50", "features": ["hardtop", "bow sunpad", "hydraulic platform", "air conditioning"]}',
-        'make': 'Sunseeker',
-        'model': 'Predator 50',
-        'boat_type': 'motor yacht',
-        'year_estimate': '2022',
-        'latitude': wc_coords[9][0],
-        'longitude': wc_coords[9][1]
-    }
-])
+identifier = AnthropicCarIdentifier(api_key=api_key)
+requested_fields = ['make', 'model', 'description', 'car_type', 'year', 'body_type', 'features']
 
-# Populate boats table with sample data
-engine.populate_table_dynamic(sample_boat_data, 'boat_identifications')
+# Find all car images sorted numerically
+images_dir = os.path.join(project_root, 'data', 'images')
+image_files = sorted(
+    glob.glob(os.path.join(images_dir, 'car*.png')),
+    key=lambda x: int(os.path.basename(x).replace('car', '').replace('.png', ''))
+)
+print(f"\nFound {len(image_files)} car images to process...")
 
-# Seed liked_boats for the 10 CSV users (not admin)
-# Each user likes between 1-5 random boats from the 15 sample boats
+cache = load_cache()
+cached_count = sum(1 for f in image_files if os.path.basename(f) in cache)
+print(f"  {cached_count} already identified (cached), {len(image_files) - cached_count} need API calls")
+
+async def identify_all_images():
+    """Send each image through the AI identification pipeline, using cache when available."""
+    results = []
+    for img_path in image_files:
+        filename = os.path.basename(img_path)
+        s3_key = f"car-images/{filename}"
+        lat, lng = random_city_coord()
+
+        # Check cache first
+        if filename in cache:
+            cached = cache[filename]
+            print(f"  {filename}: CACHED - {cached.get('make', '?')} {cached.get('model', '?')}")
+            results.append({
+                'image_filename': filename,
+                's3_image_key': s3_key,
+                'is_car': cached.get('is_car', True),
+                'confidence': cached.get('confidence', 'low'),
+                'identification_data': json.dumps(cached.get('identification_data', {})),
+                'make': cached.get('make'),
+                'model': cached.get('model'),
+                'car_type': cached.get('car_type'),
+                'year_estimate': cached.get('year'),
+                'latitude': lat,
+                'longitude': lng,
+            })
+            continue
+
+        print(f"  Identifying {filename}...", end=" ")
+        try:
+            with open(img_path, 'rb') as f:
+                image_data = f.read()
+
+            result = await identifier.identify_car(image_data, requested_fields)
+
+            # Build identification_data JSON from the full result
+            id_data = {
+                'make': result.make,
+                'model': result.model,
+                'description': result.description,
+                'car_type': result.car_type,
+                'confidence': result.confidence,
+                'features': result.features or [],
+                'year': result.year,
+                'body_type': result.body_type,
+            }
+
+            # Save to cache
+            cache[filename] = {
+                'is_car': result.is_car,
+                'confidence': result.confidence,
+                'make': result.make,
+                'model': result.model,
+                'car_type': result.car_type,
+                'year': result.year,
+                'identification_data': id_data,
+            }
+            save_cache(cache)
+
+            results.append({
+                'image_filename': filename,
+                's3_image_key': s3_key,
+                'is_car': result.is_car,
+                'confidence': result.confidence or 'low',
+                'identification_data': json.dumps(id_data),
+                'make': result.make,
+                'model': result.model,
+                'car_type': result.car_type,
+                'year_estimate': result.year,
+                'latitude': lat,
+                'longitude': lng,
+            })
+            print(f"{result.make} {result.model} ({result.car_type}, {result.confidence})")
+
+        except Exception as e:
+            print(f"ERROR: {e}")
+            results.append({
+                'image_filename': filename,
+                's3_image_key': s3_key,
+                'is_car': False,
+                'confidence': 'low',
+                'identification_data': json.dumps({'error': str(e)}),
+                'make': None,
+                'model': None,
+                'car_type': None,
+                'year_estimate': None,
+                'latitude': lat,
+                'longitude': lng,
+            })
+
+    return results
+
+# Run identification on all images (uses cache for previously identified)
+car_results = asyncio.run(identify_all_images())
+sample_car_data = pd.DataFrame(car_results)
+print(f"\nSuccessfully processed {len(sample_car_data)} images")
+
+# Populate car_identifications table
+# Assign each car to a random user from the CSV users
 csv_user_ids = users['id'].tolist()[:10]  # First 10 are CSV users, admin is last
-boat_ids = list(range(1, 16))  # Boats have IDs 1-15 (SERIAL)
+sample_car_data['user_id'] = [random.choice(csv_user_ids) for _ in range(len(sample_car_data))]
+engine.populate_table_dynamic(sample_car_data, 'car_identifications')
+
+# Seed liked_cars: each user likes between 1-5 random cars
+num_cars = len(sample_car_data)
+car_ids = list(range(1, num_cars + 1))  # SERIAL IDs start at 1
 
 liked_rows = []
 for user_id in csv_user_ids:
-    num_likes = random.randint(1, 5)
-    liked_boat_ids = random.sample(boat_ids, num_likes)
-    for bid in liked_boat_ids:
-        liked_rows.append({'boat_id': bid, 'user_id': user_id})
+    num_likes = random.randint(1, min(5, num_cars))
+    liked_car_ids = random.sample(car_ids, num_likes)
+    for cid in liked_car_ids:
+        liked_rows.append({'car_id': cid, 'user_id': user_id})
 
-liked_boats_df = pd.DataFrame(liked_rows)
-engine.populate_table_dynamic(liked_boats_df, 'liked_boats')
+liked_cars_df = pd.DataFrame(liked_rows)
+engine.populate_table_dynamic(liked_cars_df, 'liked_cars')
+print(f"Seeded {len(liked_rows)} likes across {len(csv_user_ids)} users")
 
-# Populate boat_popularity by aggregating likes directly from the database
-# This ensures the counts match what's actually in liked_boats
+# Populate car_popularity by aggregating likes from liked_cars
 populate_popularity_query = """
-INSERT INTO boat_popularity (id, likes)
-SELECT bi.id, COALESCE(lb.like_count, 0)
-FROM boat_identifications bi
+INSERT INTO car_popularity (id, likes)
+SELECT ci.id, COALESCE(lc.like_count, 0)
+FROM car_identifications ci
 LEFT JOIN (
-    SELECT boat_id, COUNT(*) as like_count
-    FROM liked_boats
-    GROUP BY boat_id
-) lb ON bi.id = lb.boat_id
+    SELECT car_id, COUNT(*) as like_count
+    FROM liked_cars
+    GROUP BY car_id
+) lc ON ci.id = lc.car_id
 """
 try:
     engine.create_table(populate_popularity_query)
-    print("Successfully populated boat_popularity table from liked_boats aggregation")
+    print("Successfully populated car_popularity table from liked_cars aggregation")
 except Exception as e:
-    print(f"Error populating boat_popularity: {e}")
+    print(f"Error populating car_popularity: {e}")
 
 # Testing if the tables were created and populated correctly
 print(engine.test_table('users'))
-print(engine.test_table('boat_identifications'))
-print(engine.test_table('liked_boats'))
-print(engine.test_table('boat_popularity'))
+print(engine.test_table('car_identifications'))
+print(engine.test_table('liked_cars'))
+print(engine.test_table('car_popularity'))

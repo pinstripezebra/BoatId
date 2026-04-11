@@ -73,7 +73,7 @@ class DatabaseHandler:
         # Create a cursor object
         cursor = self.conn.cursor()
         # Execute a query to delete the table
-        cursor.execute("DROP TABLE IF EXISTS {table_name}".format(table_name=table_name))
+        cursor.execute("DROP TABLE IF EXISTS {table_name} CASCADE".format(table_name=table_name))
         self.conn.commit()
 
 

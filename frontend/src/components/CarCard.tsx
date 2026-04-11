@@ -1,7 +1,7 @@
 import React from 'react';
 import {View, Text, Image, TouchableOpacity, StyleSheet, useColorScheme, ImageSourcePropType} from 'react-native';
 
-export interface BoatCardData {
+export interface CarCardData {
   id: string;
   name: string;
   image?: ImageSourcePropType;
@@ -9,13 +9,13 @@ export interface BoatCardData {
   make?: string;
 }
 
-interface BoatCardProps extends BoatCardData {
+interface CarCardProps extends CarCardData {
   onPress?: () => void;
   isLiked?: boolean;
   onLikeToggle?: (id: string) => void;
 }
 
-const BoatCard: React.FC<BoatCardProps> = ({id, name, type, make, image, onPress, isLiked, onLikeToggle}) => {
+const CarCard: React.FC<CarCardProps> = ({id, name, type, make, image, onPress, isLiked, onLikeToggle}) => {
   const isDarkMode = useColorScheme() === 'dark';
 
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
@@ -32,7 +32,7 @@ const BoatCard: React.FC<BoatCardProps> = ({id, name, type, make, image, onPress
           <Image source={image} style={styles.image} resizeMode="cover" />
         ) : (
           <View style={styles.imagePlaceholder}>
-            <Text style={styles.placeholderEmoji}>🚤</Text>
+            <Text style={styles.placeholderEmoji}>�</Text>
           </View>
         )}
         {onLikeToggle && (
@@ -115,4 +115,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BoatCard;
+export default CarCard;

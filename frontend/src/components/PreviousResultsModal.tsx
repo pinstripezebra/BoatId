@@ -10,14 +10,14 @@ import {
   ActivityIndicator,
   useColorScheme,
 } from 'react-native';
-import { BoatApiService, type BoatIdentificationListResponse } from '../services';
+import { CarApiService, type CarIdentificationListResponse } from '../services';
 
 interface PreviousResultsModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-type IdentificationItem = BoatIdentificationListResponse['results'][number];
+type IdentificationItem = CarIdentificationListResponse['results'][number];
 
 const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, onClose }) => {
   const isDarkMode = useColorScheme() === 'dark';
@@ -44,7 +44,7 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
     if (isLoading) return;
     setIsLoading(true);
     try {
-      const data = await BoatApiService.getIdentifications(pageNum, 20);
+      const data = await CarApiService.getIdentifications(pageNum, 20);
       if (pageNum === 1) {
         setResults(data.results);
       } else {
@@ -88,8 +88,8 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
         />
         <View style={styles.resultInfo}>
           <View style={styles.resultHeader}>
-            <Text style={[styles.boatStatus, { color: item.is_boat ? '#4CAF50' : '#F44336' }]}>
-              {item.is_boat ? '🚤 Boat' : '❌ Not a Boat'}
+            <Text style={[styles.carStatus, { color: item.is_car ? '#4CAF50' : '#F44336' }]}>
+              {item.is_car ? '� Car' : '❌ Not a Car'}
             </Text>
             {data?.confidence && (
               <Text style={[styles.confidence, { color: subtextColor }]}>
@@ -98,7 +98,7 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
             )}
           </View>
 
-          {item.is_boat && data && (
+          {item.is_car && data && (
             <View style={styles.detailsGrid}>
               {data.make && (
                 <DetailRow label="Make" value={data.make} textColor={textColor} subtextColor={subtextColor} />
@@ -106,8 +106,8 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
               {data.model && (
                 <DetailRow label="Model" value={data.model} textColor={textColor} subtextColor={subtextColor} />
               )}
-              {data.boat_type && (
-                <DetailRow label="Type" value={data.boat_type} textColor={textColor} subtextColor={subtextColor} />
+              {data.car_type && (
+                <DetailRow label="Type" value={data.car_type} textColor={textColor} subtextColor={subtextColor} />
               )}
               {data.year && (
                 <DetailRow label="Year" value={data.year} textColor={textColor} subtextColor={subtextColor} />
@@ -115,8 +115,8 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
               {data.length && (
                 <DetailRow label="Length" value={data.length} textColor={textColor} subtextColor={subtextColor} />
               )}
-              {data.hull_material && (
-                <DetailRow label="Hull" value={data.hull_material} textColor={textColor} subtextColor={subtextColor} />
+              {data.body_type && (
+                <DetailRow label="Body" value={data.body_type} textColor={textColor} subtextColor={subtextColor} />
               )}
               {data.description && (
                 <Text style={[styles.description, { color: subtextColor }]} numberOfLines={3}>
@@ -151,10 +151,10 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
           </View>
         ) : results.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>🚤</Text>
+            <Text style={{ fontSize: 48, marginBottom: 16 }}>�</Text>
             <Text style={[styles.emptyText, { color: textColor }]}>No identifications yet</Text>
             <Text style={[styles.emptySubtext, { color: subtextColor }]}>
-              Use the camera to identify your first boat!
+              Use the camera to identify your first car!
             </Text>
           </View>
         ) : (
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  boatStatus: {
+  carStatus: {
     fontSize: 16,
     fontWeight: '600',
   },

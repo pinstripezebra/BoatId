@@ -1,20 +1,20 @@
 import React from 'react';
 import {View, Text, FlatList, StyleSheet, useColorScheme} from 'react-native';
-import BoatCard, {type BoatCardData} from './BoatCard';
+import CarCard, {type CarCardData} from './CarCard';
 
-interface HorizontalBoatListProps {
+interface HorizontalCarListProps {
   title: string;
-  boats: BoatCardData[];
-  onBoatPress?: (boat: BoatCardData) => void;
+  cars: CarCardData[];
+  onCarPress?: (car: CarCardData) => void;
   maxItems?: number;
   isLiked?: (id: string) => boolean;
   onLikeToggle?: (id: string) => void;
 }
 
-const HorizontalBoatList: React.FC<HorizontalBoatListProps> = ({
+const HorizontalCarList: React.FC<HorizontalCarListProps> = ({
   title,
-  boats,
-  onBoatPress,
+  cars,
+  onCarPress,
   maxItems,
   isLiked,
   onLikeToggle,
@@ -22,21 +22,21 @@ const HorizontalBoatList: React.FC<HorizontalBoatListProps> = ({
   const isDarkMode = useColorScheme() === 'dark';
   const textColor = isDarkMode ? '#ffffff' : '#333333';
 
-  const displayBoats = maxItems ? boats.slice(0, maxItems) : boats;
+  const displayCars = maxItems ? cars.slice(0, maxItems) : cars;
 
   return (
     <View style={styles.container}>
       <Text style={[styles.title, {color: textColor}]}>{title}</Text>
       <FlatList
-        data={displayBoats}
+        data={displayCars}
         keyExtractor={item => item.id}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}
         renderItem={({item}) => (
-          <BoatCard
+          <CarCard
             {...item}
-            onPress={() => onBoatPress?.(item)}
+            onPress={() => onCarPress?.(item)}
             isLiked={isLiked?.(item.id)}
             onLikeToggle={onLikeToggle}
           />
@@ -61,4 +61,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HorizontalBoatList;
+export default HorizontalCarList;

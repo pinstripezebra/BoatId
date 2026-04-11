@@ -23,7 +23,7 @@ import os
 router = APIRouter()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security_logger = logging.getLogger("boatid.security")
+security_logger = logging.getLogger("carid.security")
 
 # JWT settings
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY")

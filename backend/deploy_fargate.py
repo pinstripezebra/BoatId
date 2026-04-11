@@ -1,5 +1,5 @@
 """
-Deploy BoatId backend to AWS Fargate using ECR + ECS.
+Deploy CarId backend to AWS Fargate using ECR + ECS.
 
 Usage:
     python backend/deploy_fargate.py
@@ -32,7 +32,7 @@ load_dotenv()
 
 # Constants
 REGION = "us-west-2"
-SERVICE_NAME = "boatid-backend"
+SERVICE_NAME = "carid-backend"
 CONTAINER_PORT = 8080
 CPU = "512"       # 0.5 vCPU
 MEMORY = "1024"   # 1 GB
@@ -181,7 +181,7 @@ def ensure_iam_roles(iam, account_id):
             policy_doc = json.load(f)
         iam.put_role_policy(
             RoleName=task_role_name,
-            PolicyName="BoatIdTaskPolicy",
+            PolicyName="CarIdTaskPolicy",
             PolicyDocument=json.dumps(policy_doc),
         )
         logger.info(f"Created task role: {task_role_name}")
@@ -272,7 +272,7 @@ def ensure_security_group(ec2, vpc_id):
 
     resp = ec2.create_security_group(
         GroupName=sg_name,
-        Description="BoatId Fargate service",
+        Description="CarId Fargate service",
         VpcId=vpc_id,
     )
     sg_id = resp["GroupId"]
@@ -309,7 +309,7 @@ def ensure_alb_security_group(ec2, vpc_id):
 
     resp = ec2.create_security_group(
         GroupName=sg_name,
-        Description="BoatId ALB - allows HTTP traffic",
+        Description="CarId ALB - allows HTTP traffic",
         VpcId=vpc_id,
     )
     sg_id = resp["GroupId"]

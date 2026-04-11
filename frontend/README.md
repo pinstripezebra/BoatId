@@ -1,5 +1,5 @@
-    npm # BoatId Mobile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
-A React Native application for boat identification and cataloging.
+    npm # CarId Mobile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+A React Native application for car identification and cataloging.
 
 ## 🚤 Features
 
@@ -20,7 +20,7 @@ A React Native application for boat identification and cataloging.
 
 ### Features Ready for Development
 - ✅ Camera Integration (placeholder)
-- ✅ Boat Identification (placeholder)
+- ✅ car identification (placeholder)
 - ✅ Data Storage (placeholder)
 - ✅ User Authentication (placeholder)
 
@@ -82,17 +82,17 @@ frontend/
 
 ## 🚀 Next Steps
 
-This hello world app provides a solid foundation for building the complete BoatId application. The next development phases will include:
+This hello world app provides a solid foundation for building the complete CarId application. The next development phases will include:
 
 1. **Camera Integration**: React Native Camera setup
 2. **Backend API Connection**: Connect to FastAPI backend
 3. **Authentication Flow**: Login/register screens
-4. **Boat Database**: CRUD operations for boat data
+4. **Car Database**: CRUD operations for car data
 5. **Image Upload**: S3 integration for image storage
 
 ## 📄 License
 
-This project is part of the BoatId application suite.
+This project is part of the CarId application suite.
 
 ## Step 2: Build and run your app
 

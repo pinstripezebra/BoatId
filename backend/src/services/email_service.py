@@ -2,10 +2,10 @@ import os
 import logging
 import resend
 
-logger = logging.getLogger("boatid.email")
+logger = logging.getLogger("carid.email")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_DOMAIN = os.getenv("RESEND_DOMAIN", "boatid.org")
+RESEND_DOMAIN = os.getenv("RESEND_DOMAIN", "carid.org")
 FROM_EMAIL = f"verify@{RESEND_DOMAIN}"
 
 if RESEND_API_KEY:
@@ -20,12 +20,12 @@ def send_verification_email(to_email: str, code: str) -> bool:
 
     try:
         resend.Emails.send({
-            "from": f"BoatId <{FROM_EMAIL}>",
+            "from": f"CarId <{FROM_EMAIL}>",
             "to": [to_email],
-            "subject": "Verify your BoatId account",
+            "subject": "Verify your CarId account",
             "html": f"""
             <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-                <h2 style="text-align: center; color: #2196f3;">⚓ BoatId</h2>
+                <h2 style="text-align: center; color: #2196f3;">🚗 CarId</h2>
                 <p>Enter this code in the app to verify your email address:</p>
                 <div style="text-align: center; margin: 24px 0;">
                     <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">
@@ -33,7 +33,7 @@ def send_verification_email(to_email: str, code: str) -> bool:
                     </span>
                 </div>
                 <p style="color: #666; font-size: 14px;">This code expires in 10 minutes.</p>
-                <p style="color: #666; font-size: 14px;">If you didn't create a BoatId account, you can safely ignore this email.</p>
+                <p style="color: #666; font-size: 14px;">If you didn't create a CarId account, you can safely ignore this email.</p>
             </div>
             """,
         })
@@ -52,12 +52,12 @@ def send_password_reset_email(to_email: str, code: str) -> bool:
 
     try:
         resend.Emails.send({
-            "from": f"BoatId <{FROM_EMAIL}>",
+            "from": f"CarId <{FROM_EMAIL}>",
             "to": [to_email],
-            "subject": "Reset your BoatId password",
+            "subject": "Reset your CarId password",
             "html": f"""
             <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-                <h2 style="text-align: center; color: #2196f3;">⚓ BoatId</h2>
+                <h2 style="text-align: center; color: #2196f3;">🚗 CarId</h2>
                 <p>You requested a password reset. Enter this code in the app:</p>
                 <div style="text-align: center; margin: 24px 0;">
                     <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">

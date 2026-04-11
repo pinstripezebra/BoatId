@@ -1,12 +1,12 @@
-# 🚤 BoatID
+# � CarID
 
-BoatID is a mobile application that identifies boats from photos using AI. Take a picture of any boat with your phone, and the app will analyze the image to determine its make, model, type, and other details.
+CarID is a mobile application that identifies cars from photos using AI. Take a picture of any car with your phone, and the app will analyze the image to determine its make, model, type, and other details.
 
 ## Overview
 
 - **Frontend**: React Native mobile app (Android/iOS) with camera integration
 - **Backend**: FastAPI service deployed on AWS Fargate behind an Application Load Balancer
-- **AI**: Anthropic Claude Vision (claude-3-haiku) for boat image analysis
+- **AI**: Anthropic Claude Vision (claude-3-haiku) for car image analysis
 - **Storage**: AWS S3 for images, PostgreSQL (RDS) for identification results and user data
 
 ## 🏗️ Architecture
@@ -16,7 +16,7 @@ graph TB
     subgraph Client["📱 Mobile Client"]
         RN["React Native App<br/>(Android / iOS)"]
         CAM["Camera Module<br/>react-native-image-picker"]
-        API_SVC["API Service Layer<br/>httpClient / boatApi"]
+        API_SVC["API Service Layer<br/>httpClient / carApi"]
     end
 
     subgraph AWS["☁️ AWS Cloud (us-west-2)"]
@@ -28,12 +28,12 @@ graph TB
 
         subgraph Routes["API Routes"]
             AUTH["/auth<br/>Register, Login, JWT Tokens"]
-            BOATS["/api/v1/boats<br/>Identify, Upload, Search"]
+            CARS["/api/v1/cars<br/>Identify, Upload, Search"]
             USERS["/api/v1/users<br/>Profiles, Admin"]
         end
 
         subgraph Services["Backend Services"]
-            ID_SVC["Boat Identification<br/>Service"]
+            ID_SVC["Car Identification<br/>Service"]
             S3_SVC["S3 Storage<br/>Service"]
             DB_SVC["Storage Service<br/>(CRUD)"]
         end
@@ -48,10 +48,10 @@ graph TB
     API_SVC -->|"HTTP Requests"| ALB
     ALB -->|"Forward :8080"| FAST
     FAST --> AUTH
-    FAST --> BOATS
+    FAST --> CARS
     FAST --> USERS
-    BOATS --> ID_SVC
-    BOATS --> DB_SVC
+    CARS --> ID_SVC
+    CARS --> DB_SVC
     ID_SVC --> ANTHROPIC
     ID_SVC --> S3_SVC
     S3_SVC --> S3

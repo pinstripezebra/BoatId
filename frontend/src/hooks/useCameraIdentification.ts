@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { launchCameraFunction } from '../components/Camera';
-import { BoatApiService, type BoatIdentificationResponse } from '../services';
+import { CarApiService, type CarIdentificationResponse } from '../services';
 
 const getCurrentPosition = (): Promise<{latitude: number; longitude: number} | null> => {
   return new Promise(async (resolve) => {
@@ -34,10 +34,10 @@ const getCurrentPosition = (): Promise<{latitude: number; longitude: number} | n
 
 export const useCameraIdentification = () => {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastResult, setLastResult] = useState<BoatIdentificationResponse | null>(null);
+  const [lastResult, setLastResult] = useState<CarIdentificationResponse | null>(null);
 
   const captureAndIdentify = async (
-    requestedFields: string[] = ['make', 'model', 'description', 'boat_type']
+    requestedFields: string[] = ['make', 'model', 'description', 'car_type']
   ) => {
     setIsProcessing(true);
     
@@ -52,7 +52,7 @@ export const useCameraIdentification = () => {
       const location = await locationPromise;
       
       // Use your existing API service
-      const result = await BoatApiService.identifyBoat(
+      const result = await CarApiService.identifyCar(
         imageUri,
         requestedFields,
         true,
@@ -64,7 +64,7 @@ export const useCameraIdentification = () => {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      Alert.alert('Error', `Failed to identify boat: ${message}`);
+      Alert.alert('Error', `Failed to identify car: ${message}`);
       throw error;
     } finally {
       setIsProcessing(false);

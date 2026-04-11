@@ -6,10 +6,10 @@ from typing import List, Optional
 import logging
 from pydantic import BaseModel, EmailStr
 from models.user import User
-from models.boat import BoatIdentification
+from models.car import CarIdentification
 from models.refresh_token import RefreshToken
-from models.liked_boat import LikedBoat
-from models.boat_popularity import BoatPopularity
+from models.liked_car import LikedCar
+from models.car_popularity import CarPopularity
 from services.s3_service import S3Service
 from utils.database import get_db
 from utils.rate_limit import limiter
@@ -20,7 +20,7 @@ import os
 router = APIRouter()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security_logger = logging.getLogger("boatid.security")
+security_logger = logging.getLogger("carid.security")
 
 # JWT settings (should match auth.py)
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
@@ -226,33 +226,33 @@ async def delete_account(
     try:
         user_id = current_user.id
 
-        # 1. Get liked boat IDs for popularity decrement
-        liked_boat_ids = db.query(LikedBoat.boat_id).filter(
-            LikedBoat.user_id == user_id
+        # 1. Get liked car IDs for popularity decrement
+        liked_car_ids = db.query(LikedCar.car_id).filter(
+            LikedCar.user_id == user_id
         ).all()
-        liked_boat_ids = [row[0] for row in liked_boat_ids]
+        liked_car_ids = [row[0] for row in liked_car_ids]
 
-        # 2. Delete liked_boats
-        db.query(LikedBoat).filter(LikedBoat.user_id == user_id).delete()
+        # 2. Delete liked_cars
+        db.query(LikedCar).filter(LikedCar.user_id == user_id).delete()
 
-        # 3. Decrement boat_popularity for affected boats
-        if liked_boat_ids:
-            db.query(BoatPopularity).filter(
-                BoatPopularity.id.in_(liked_boat_ids)
+        # 3. Decrement car_popularity for affected cars
+        if liked_car_ids:
+            db.query(CarPopularity).filter(
+                CarPopularity.id.in_(liked_car_ids)
             ).update(
-                {BoatPopularity.likes: BoatPopularity.likes - 1},
+                {CarPopularity.likes: CarPopularity.likes - 1},
                 synchronize_session='fetch'
             )
 
-        # 4. Collect S3 keys before deleting boat_identifications
-        s3_keys = db.query(BoatIdentification.s3_image_key).filter(
-            BoatIdentification.user_id == user_id
+        # 4. Collect S3 keys before deleting car_identifications
+        s3_keys = db.query(CarIdentification.s3_image_key).filter(
+            CarIdentification.user_id == user_id
         ).all()
         s3_keys = [row[0] for row in s3_keys if row[0]]
 
-        # 5. Delete boat_identifications
-        db.query(BoatIdentification).filter(
-            BoatIdentification.user_id == user_id
+        # 5. Delete car_identifications
+        db.query(CarIdentification).filter(
+            CarIdentification.user_id == user_id
         ).delete()
 
         # 6. Delete refresh_tokens

@@ -7,19 +7,19 @@ from PIL import Image
 import io
 
 @dataclass
-class BoatIdentificationResult:
-    is_boat: bool
+class CarIdentificationResult:
+    is_car: bool
     make: Optional[str] = None
     model: Optional[str] = None
     description: Optional[str] = None
     year: Optional[str] = None
     length: Optional[str] = None
-    boat_type: Optional[str] = None
+    car_type: Optional[str] = None
     confidence: Optional[str] = None
-    hull_material: Optional[str] = None
+    body_type: Optional[str] = None
     features: Optional[List[str]] = None
 
-class AnthropicBoatIdentifier:
+class AnthropicCarIdentifier:
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
@@ -42,15 +42,15 @@ class AnthropicBoatIdentifier:
         return base64.b64encode(buffer.getvalue()).decode()
     
     def _build_prompt(self, requested_fields: List[str]) -> str:
-        """Build structured prompt for boat identification"""
+        """Build structured prompt for car identification"""
         field_descriptions = {
             'make': 'manufacturer/brand name',
             'model': 'specific model name',
             'description': 'detailed physical description',
             'year': 'estimated year or year range',
             'length': 'estimated length in feet',
-            'boat_type': 'type (sailboat, motorboat, yacht, fishing boat, etc.)',
-            'hull_material': 'hull material (fiberglass, wood, aluminum, etc.)',
+            'car_type': 'type (sedan, SUV, truck, coupe, convertible, hatchback, etc.)',
+            'body_type': 'body style (coupe, sedan, hatchback, wagon, etc.)',
             'features': 'notable features as an array'
         }
         
@@ -58,18 +58,18 @@ class AnthropicBoatIdentifier:
                                 for field in requested_fields]
         
         return f"""
-        Analyze this image carefully and determine if it shows a boat or watercraft.
+        Analyze this image carefully and determine if it shows a car or vehicle.
         
-        If it IS a boat, respond with a JSON object containing:
+        If it IS a car, respond with a JSON object containing:
         {{
-            "is_boat": true,
+            "is_car": true,
             "confidence": "high|medium|low",
             {', '.join(requested_descriptions)}
         }}
         
-        If it is NOT a boat, respond with:
+        If it is NOT a car, respond with:
         {{
-            "is_boat": false,
+            "is_car": false,
             "confidence": "high",
             "description": "brief description of what you see instead"
         }}
@@ -77,19 +77,19 @@ class AnthropicBoatIdentifier:
         Guidelines:
         - Use "unknown" for fields you cannot determine
         - Be specific but concise
-        - Confidence should reflect your certainty about the boat identification
+        - Confidence should reflect your certainty about the car identification
         - For features, include notable equipment, design elements, or modifications
         
         Respond only with valid JSON.
         """
     
-    async def identify_boat(self, 
+    async def identify_car(self, 
                           image_data: bytes, 
-                          requested_fields: List[str] = None) -> BoatIdentificationResult:
-        """Identify boat from image data"""
+                          requested_fields: List[str] = None) -> CarIdentificationResult:
+        """Identify car from image data"""
         
         if requested_fields is None:
-            requested_fields = ['make', 'model', 'description', 'boat_type']
+            requested_fields = ['make', 'model', 'description', 'car_type']
         
         try:
             # Prepare image
@@ -136,17 +136,17 @@ class AnthropicBoatIdentifier:
         except Exception as e:
             raise RuntimeError(f"Error calling Anthropic API: {e}")
     
-    def _parse_result(self, result_json: Dict) -> BoatIdentificationResult:
+    def _parse_result(self, result_json: Dict) -> CarIdentificationResult:
         """Parse JSON response into structured result"""
-        return BoatIdentificationResult(
-            is_boat=result_json.get('is_boat', False),
+        return CarIdentificationResult(
+            is_car=result_json.get('is_car', False),
             make=result_json.get('make'),
             model=result_json.get('model'),
             description=result_json.get('description'),
             year=result_json.get('year'),
             length=result_json.get('length'),
-            boat_type=result_json.get('boat_type'),
+            car_type=result_json.get('car_type'),
             confidence=result_json.get('confidence'),
-            hull_material=result_json.get('hull_material'),
+            body_type=result_json.get('body_type'),
             features=result_json.get('features', [])
         )

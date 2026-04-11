@@ -111,22 +111,22 @@ def test_database_connection():
             result = connection.execute(text("SELECT 1"))
             print("✅ Database connection successful")
             
-            # Check if boat_identifications table exists
+            # Check if car_identifications table exists
             table_check = connection.execute(text("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
-                    WHERE table_name = 'boat_identifications'
+                    WHERE table_name = 'car_identifications'
                 )
             """))
             
             if table_check.fetchone()[0]:
-                print("✅ boat_identifications table exists")
+                print("✅ car_identifications table exists")
                 
                 # Check table structure
                 column_check = connection.execute(text("""
                     SELECT column_name, data_type 
                     FROM information_schema.columns 
-                    WHERE table_name = 'boat_identifications'
+                    WHERE table_name = 'car_identifications'
                     ORDER BY ordinal_position
                 """))
                 
@@ -134,7 +134,7 @@ def test_database_connection():
                 print(f"✅ Table has {len(columns)} columns")
                 
             else:
-                print("⚠️ boat_identifications table does not exist")
+                print("⚠️ car_identifications table does not exist")
                 print("💡 Run: python initialize_database.py")
         
         return True

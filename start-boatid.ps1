@@ -1,4 +1,4 @@
-# BoatId Complete Startup Script
+# CarId Complete Startup Script
 # This script sets up environment and runs both backend and frontend
 
 param(
@@ -6,11 +6,11 @@ param(
     [switch]$FrontendOnly
 )
 
-Write-Host "Starting BoatId Development Environment" -ForegroundColor Cyan
-Write-Host "=======================================" -ForegroundColor Cyan
+Write-Host "Starting CarId Development Environment" -ForegroundColor Cyan
+Write-Host "======================================" -ForegroundColor Cyan
 
 # Get current directory for absolute paths
-$projectRoot = "C:\Users\seelc\OneDrive\Desktop\Lucas Desktop Items\Projects\BoatId"
+$projectRoot = "C:\Users\seelc\OneDrive\Desktop\Lucas Desktop Items\Projects\CarId"
 
 # Setup environment variables
 Write-Host "Setting up environment..." -ForegroundColor Yellow
@@ -81,13 +81,13 @@ if (-not $BackendOnly) {
     $runApp = Read-Host "Run React Native app now? (y/n)"
     if ($runApp -eq "y" -or $runApp -eq "Y") {
         Set-Location "$projectRoot\frontend"
-        Write-Host "Building and running BoatId app..." -ForegroundColor Green
+        Write-Host "Building and running CarId app..." -ForegroundColor Green
         npx react-native run-android
     }
 }
 
 Write-Host ""
-Write-Host "BoatId Development Environment Ready!" -ForegroundColor Green
+Write-Host "CarId Development Environment Ready!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Backend URL: http://127.0.0.1:8000/docs" -ForegroundColor Cyan
 Write-Host "Login: admin_username / Admin_Password1!" -ForegroundColor Cyan

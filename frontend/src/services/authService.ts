@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { API_BASE_URL } from '../config/api';
 
-const TOKEN_KEY = '@BoatId:accessToken';
-const USER_KEY = '@BoatId:userData';
-const KEYCHAIN_SERVICE = 'com.boatid.refreshtoken';
+const TOKEN_KEY = '@CarId:accessToken';
+const USER_KEY = '@CarId:userData';
+const KEYCHAIN_SERVICE = 'com.carid.refreshtoken';
 
 export interface AuthUser {
   user_id: string;

@@ -52,7 +52,7 @@ def upload_images_to_s3():
             name_without_ext = os.path.splitext(filename)[0]
             
             # S3 key (filename in bucket) - always save as PNG
-            s3_key = f"boat-images/{name_without_ext}.png"
+            s3_key = f"car-images/{name_without_ext}.png"
             
             print(f"Processing {filename}...")
             

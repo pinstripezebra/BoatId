@@ -40,7 +40,7 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onClose }) =>
 
         <Text style={[styles.sectionTitle, { color: textColor }]}>1. Introduction</Text>
         <Text style={[styles.body, { color: textColor }]}>
-          BoatId Inc. ("we", "our", or "us") operates the BoatID mobile application (the "App"). This Privacy Policy explains how we collect, use, store, and protect your personal information when you use our App.
+          CarId Inc. ("we", "our", or "us") operates the CarID mobile application (the "App"). This Privacy Policy explains how we collect, use, store, and protect your personal information when you use our App.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: textColor }]}>2. Information We Collect</Text>
@@ -49,20 +49,20 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onClose }) =>
         </Text>
         <Text style={[styles.body, { color: textColor }]}>
           {'\u2022'} Account Information: Username, email address, and encrypted password when you create an account.{'\n'}
-          {'\u2022'} Photos: Images you capture or upload for boat identification. These are stored on our servers for processing and retrieval.{'\n'}
-          {'\u2022'} Location Data: GPS coordinates when you use the camera or map features, used to tag boat sighting locations.{'\n'}
-          {'\u2022'} Usage Data: Information about how you interact with the App, including boats you identify and like.{'\n'}
+          {'\u2022'} Photos: Images you capture or upload for car identification. These are stored on our servers for processing and retrieval.{'\n'}
+          {'\u2022'} Location Data: GPS coordinates when you use the camera or map features, used to tag car sighting locations.{'\n'}
+          {'\u2022'} Usage Data: Information about how you interact with the App, including cars you identify and like.{'\n'}
           {'\u2022'} Optional Profile Information: Phone number, location description, and bio if you choose to provide them.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: textColor }]}>3. How We Use Your Information</Text>
         <Text style={[styles.body, { color: textColor }]}>
           We use your information to:{'\n\n'}
-          {'\u2022'} Provide boat identification services using AI image analysis{'\n'}
+          {'\u2022'} Provide car identification services using AI image analysis{'\n'}
           {'\u2022'} Store and display your identification history{'\n'}
-          {'\u2022'} Enable social features such as liking and viewing popular boats{'\n'}
+          {'\u2022'} Enable social features such as liking and viewing popular cars{'\n'}
           {'\u2022'} Authenticate your account and maintain security{'\n'}
-          {'\u2022'} Improve our boat identification accuracy and App experience
+          {'\u2022'} Improve our car identification accuracy and App experience
         </Text>
 
         <Text style={[styles.sectionTitle, { color: textColor }]}>4. Data Storage & Security</Text>
@@ -79,7 +79,7 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onClose }) =>
         <Text style={[styles.body, { color: textColor }]}>
           We use the following third-party services to operate the App:{'\n\n'}
           {'\u2022'} Amazon Web Services (AWS): Cloud infrastructure, image storage, and database hosting{'\n'}
-          {'\u2022'} Anthropic: AI-powered boat image analysis (images are sent to their API for identification){'\n\n'}
+          {'\u2022'} Anthropic: AI-powered car image analysis (images are sent to their API for identification){'\n\n'}
           We do not sell, rent, or share your personal information with third parties for marketing purposes.
         </Text>
 
@@ -110,8 +110,8 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onClose }) =>
         <Text style={[styles.sectionTitle, { color: textColor }]}>10. Contact Us</Text>
         <Text style={[styles.body, { color: textColor }]}>
           If you have questions about this Privacy Policy or your data, please contact us at:{'\n\n'}
-          BoatId Inc.{'\n'}
-          Email: privacy@boatid.com
+          CarId Inc.{'\n'}
+          Email: privacy@CarID.com
         </Text>
 
         <View style={styles.bottomSpacer} />

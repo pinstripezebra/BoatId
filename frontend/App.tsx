@@ -1,6 +1,6 @@
 /**
- * BoatId Mobile App
- * A React Native application for boat identification
+ * CarId Mobile App
+ * A React Native application for car identification
  *
  * @format
  */
@@ -25,10 +25,10 @@ import VerificationScreen from './src/components/VerificationScreen';
 import ForgotPasswordScreen from './src/components/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/components/ResetPasswordScreen';
 import PreviousResultsModal from './src/components/PreviousResultsModal';
-import BoatDetailModal from './src/components/BoatDetailModal';
-import type { DetailBoatData } from './src/components/BoatDetailModal';
+import CarDetailModal from './src/components/CarDetailModal';
+import type { DetailCarData } from './src/components/CarDetailModal';
 import SearchBar from './src/components/SearchBar';
-import HorizontalBoatList from './src/components/HorizontalBoatList';
+import HorizontalCarList from './src/components/HorizontalCarList';
 import BottomNavBar from './src/components/BottomNavBar';
 import type { TabName } from './src/components/BottomNavBar';
 import ProfileScreen from './src/components/ProfileScreen';
@@ -36,24 +36,8 @@ import MapScreen from './src/components/MapScreen';
 import SearchResultsScreen from './src/components/SearchResultsScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
-import { BoatApiService } from './src/services';
-import type { BoatCardData } from './src/components/BoatCard';
-
-const boatImages = {
-  boat1: require('./src/assets/images/boat1.png'),
-  boat2: require('./src/assets/images/boat2.png'),
-  boat3: require('./src/assets/images/boat3.png'),
-  boat4: require('./src/assets/images/boat4.png'),
-  boat5: require('./src/assets/images/boat5.png'),
-};
-
-const NEARBY_BOATS: BoatCardData[] = [
-  {id: 'n1', name: 'Chaparral 267 SSX', make: 'Chaparral', type: 'Bowrider', image: boatImages.boat3},
-  {id: 'n2', name: 'Tracker Pro 170', make: 'Tracker', type: 'Bass Boat', image: boatImages.boat5},
-  {id: 'n3', name: 'Cobalt R8', make: 'Cobalt', type: 'Bowrider', image: boatImages.boat2},
-  {id: 'n4', name: 'Ranger Z520L', make: 'Ranger', type: 'Bass Boat', image: boatImages.boat4},
-  {id: 'n5', name: 'Malibu Wakesetter', make: 'Malibu', type: 'Wakeboard', image: boatImages.boat1},
-];
+import { CarApiService } from './src/services';
+import type { CarCardData } from './src/components/CarCard';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -64,11 +48,12 @@ function App(): React.JSX.Element {
   const [resetFlowEmail, setResetFlowEmail] = useState<string | null>(null);
   const [resetFlowStep, setResetFlowStep] = useState<'forgot' | 'reset' | null>(null);
   const [showPreviousResults, setShowPreviousResults] = useState(false);
-  const [selectedBoat, setSelectedBoat] = useState<DetailBoatData | null>(null);
+  const [selectedCar, setSelectedCar] = useState<DetailCarData | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('home');
-  const [userBoats, setUserBoats] = useState<BoatCardData[]>([]);
-  const [popularBoats, setPopularBoats] = useState<BoatCardData[]>([]);
-  const [likedBoatIds, setLikedBoatIds] = useState<Set<string>>(new Set());
+  const [userCars, setUserCars] = useState<CarCardData[]>([]);
+  const [popularCars, setPopularCars] = useState<CarCardData[]>([]);
+  const [nearbyCars, setNearbyCars] = useState<CarCardData[]>([]);
+  const [likedCarIds, setLikedCarIds] = useState<Set<string>>(new Set());
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -102,83 +87,103 @@ function App(): React.JSX.Element {
     return () => subscription.remove();
   }, [isLoggedIn]);
 
-  // Fetch user's boats when logged in
-  const loadUserBoats = useCallback(async () => {
+  // Fetch user's cars when logged in
+  const loadUserCars = useCallback(async () => {
     try {
-      const data = await BoatApiService.getIdentifications(1, 10, { isBoat: true });
-      const mapped: BoatCardData[] = data.results.map(item => ({
+      const data = await CarApiService.getIdentifications(1, 10, { isCar: true });
+      const mapped: CarCardData[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.identification_data?.model
           ? `${item.identification_data.make || ''} ${item.identification_data.model}`.trim()
-          : item.identification_data?.make || 'Unknown Boat',
+          : item.identification_data?.make || 'Unknown Car',
         make: item.identification_data?.make,
-        type: item.identification_data?.boat_type,
+        type: item.identification_data?.car_type,
         image: item.image_url ? { uri: item.image_url } : undefined,
       }));
-      setUserBoats(mapped);
+      setUserCars(mapped);
     } catch (error) {
-      console.error('Failed to load user boats:', error);
+      console.error('Failed to load user cars:', error);
     }
   }, []);
 
-  const loadPopularBoats = useCallback(async () => {
+  const loadPopularCars = useCallback(async () => {
     try {
-      const data = await BoatApiService.getPopularBoats(5);
-      const mapped: BoatCardData[] = data.results.map(item => ({
+      const data = await CarApiService.getPopularCars(5);
+      const mapped: CarCardData[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.model
           ? `${item.make || ''} ${item.model}`.trim()
-          : item.make || 'Unknown Boat',
+          : item.make || 'Unknown Car',
         make: item.make || undefined,
-        type: item.boat_type || undefined,
+        type: item.car_type || undefined,
         image: item.image_url ? { uri: item.image_url } : undefined,
       }));
-      setPopularBoats(mapped);
+      setPopularCars(mapped);
     } catch (error) {
-      console.error('Failed to load popular boats:', error);
+      console.error('Failed to load popular cars:', error);
     }
   }, []);
 
-  const loadLikedBoatIds = useCallback(async () => {
+  const loadNearbyCars = useCallback(async () => {
     try {
-      const data = await BoatApiService.getLikedBoatIds();
-      setLikedBoatIds(new Set(data.liked_boat_ids.map(id => id.toString())));
+      // Use a broad radius from a central US location to get varied results
+      const data = await CarApiService.getNearbyCars(39.8, -98.6, 5000);
+      const mapped: CarCardData[] = data.results.slice(0, 5).map(item => ({
+        id: item.id.toString(),
+        name: item.model
+          ? `${item.make || ''} ${item.model}`.trim()
+          : item.make || 'Unknown Car',
+        make: item.make || undefined,
+        type: item.car_type || undefined,
+        image: item.image_url ? { uri: item.image_url } : undefined,
+      }));
+      setNearbyCars(mapped);
     } catch (error) {
-      console.error('Failed to load liked boat ids:', error);
+      console.error('Failed to load nearby cars:', error);
     }
   }, []);
 
-  const handleLikeToggle = useCallback(async (boatId: string) => {
-    const numericId = parseInt(boatId, 10);
-    const wasLiked = likedBoatIds.has(boatId);
+  const loadLikedCarIds = useCallback(async () => {
+    try {
+      const data = await CarApiService.getLikedCarIds();
+      setLikedCarIds(new Set(data.liked_car_ids.map(id => id.toString())));
+    } catch (error) {
+      console.error('Failed to load liked car ids:', error);
+    }
+  }, []);
+
+  const handleLikeToggle = useCallback(async (carId: string) => {
+    const numericId = parseInt(carId, 10);
+    const wasLiked = likedCarIds.has(carId);
     try {
       if (wasLiked) {
-        await BoatApiService.unlikeBoat(numericId);
-        setLikedBoatIds(prev => {
+        await CarApiService.unlikeCar(numericId);
+        setLikedCarIds(prev => {
           const next = new Set(prev);
-          next.delete(boatId);
+          next.delete(carId);
           return next;
         });
       } else {
-        await BoatApiService.likeBoat(numericId);
-        setLikedBoatIds(prev => new Set(prev).add(boatId));
+        await CarApiService.likeCar(numericId);
+        setLikedCarIds(prev => new Set(prev).add(carId));
       }
-      // Refresh popular boats since like counts changed
-      loadPopularBoats();
+      // Refresh popular cars since like counts changed
+      loadPopularCars();
     } catch (error) {
       console.error('Failed to toggle like:', error);
     }
-  }, [likedBoatIds, loadPopularBoats]);
+  }, [likedCarIds, loadPopularCars]);
 
-  const isBoatLiked = useCallback((id: string) => likedBoatIds.has(id), [likedBoatIds]);
+  const isCarLiked = useCallback((id: string) => likedCarIds.has(id), [likedCarIds]);
 
   useEffect(() => {
     if (isLoggedIn) {
-      loadUserBoats();
-      loadPopularBoats();
-      loadLikedBoatIds();
+      loadUserCars();
+      loadPopularCars();
+      loadNearbyCars();
+      loadLikedCarIds();
     }
-  }, [isLoggedIn, loadUserBoats, loadPopularBoats, loadLikedBoatIds]);
+  }, [isLoggedIn, loadUserCars, loadPopularCars, loadLikedCarIds]);
 
   // Show loading while checking stored auth
   if (isCheckingAuth) {
@@ -249,16 +254,16 @@ function App(): React.JSX.Element {
   // Feature handlers
   const handleCameraPress = async () => {
     try {
-      const result = await captureAndIdentify(['make', 'model', 'description', 'boat_type', 'year']);
+      const result = await captureAndIdentify(['make', 'model', 'description', 'car_type', 'year']);
       
-      if (result.is_boat) {
-        const details = result.boat_details;
+      if (result.is_car) {
+        const details = result.car_details;
         const message = `
-Boat Identified! 🚤
+Car Identified! 🚗
 
 Make: ${details?.make || 'Unknown'}
 Model: ${details?.model || 'Unknown'}
-Type: ${details?.boat_type || 'Unknown'}
+Type: ${details?.car_type || 'Unknown'}
 Year: ${details?.year || 'Unknown'}
 Confidence: ${result.confidence || 'Unknown'}
 
@@ -267,8 +272,8 @@ ${details?.description || ''}`;
         Alert.alert('Success!', message.trim());
       } else {
         Alert.alert(
-          'No Boat Detected',
-          result.message || 'The image does not appear to contain a boat.'
+          'No Car Detected',
+          result.message || 'The image does not appear to contain a car.'
         );
       }
     } catch (error) {
@@ -291,12 +296,12 @@ ${details?.description || ''}`;
       {activeTab === 'profile' ? (
         <ProfileScreen onLogout={handleLogout} />
       ) : activeTab === 'map' ? (
-        <MapScreen onBoatPress={setSelectedBoat} />
+        <MapScreen onCarPress={setSelectedCar} />
       ) : activeTab === 'search' ? (
         <SearchResultsScreen
           onBack={() => setActiveTab('home')}
-          onBoatPress={setSelectedBoat}
-          isLiked={isBoatLiked}
+          onCarPress={setSelectedCar}
+          isLiked={isCarLiked}
           onLikeToggle={handleLikeToggle}
         />
       ) : (
@@ -308,9 +313,9 @@ ${details?.description || ''}`;
           <View style={styles.headerContainer}>
             <View style={styles.headerRow}>
               <View style={styles.headerTextGroup}>
-                <Text style={[styles.title, textStyle]}>⚓ BoatId</Text>
+                <Text style={[styles.title, textStyle]}>🚗 CarId</Text>
                 <Text style={[styles.subtitle, textStyle]}>
-                  Boat Identification Made Simple
+                  Car Identification Made Simple
                 </Text>
               </View>
             </View>
@@ -323,11 +328,11 @@ ${details?.description || ''}`;
 
           <SearchBar onPress={() => setActiveTab('search')} />
 
-          <HorizontalBoatList title="Popular Boats" boats={popularBoats} onBoatPress={setSelectedBoat} maxItems={5} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
-          <HorizontalBoatList title="Boats Near You" boats={NEARBY_BOATS} onBoatPress={setSelectedBoat} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
+          <HorizontalCarList title="Popular Cars" cars={popularCars} onCarPress={setSelectedCar} maxItems={5} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
+          <HorizontalCarList title="Cars Near You" cars={nearbyCars} onCarPress={setSelectedCar} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
 
-          {userBoats.length > 0 && (
-            <HorizontalBoatList title="Your Boats" boats={userBoats} onBoatPress={setSelectedBoat} isLiked={isBoatLiked} onLikeToggle={handleLikeToggle} />
+          {userCars.length > 0 && (
+            <HorizontalCarList title="Your Cars" cars={userCars} onCarPress={setSelectedCar} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
           )}
         </ScrollView>
       )}
@@ -346,11 +351,11 @@ ${details?.description || ''}`;
         onClose={() => setShowPreviousResults(false)}
       />
 
-      <BoatDetailModal
-        visible={selectedBoat !== null}
-        boat={selectedBoat}
-        onClose={() => setSelectedBoat(null)}
-        isLiked={selectedBoat ? likedBoatIds.has(selectedBoat.id) : false}
+      <CarDetailModal
+        visible={selectedCar !== null}
+        car={selectedCar}
+        onClose={() => setSelectedCar(null)}
+        isLiked={selectedCar ? likedCarIds.has(selectedCar.id) : false}
         onLikeToggle={handleLikeToggle}
       />
     </SafeAreaView>

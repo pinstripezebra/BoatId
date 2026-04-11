@@ -92,9 +92,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.appTitle, { color: textColor }]}>⚓ BoatID</Text>
+        <Text style={[styles.appTitle, { color: textColor }]}>🚗 CarID</Text>
         <Text style={[styles.appSubtitle, { color: textColor }]}>
-          Boat Identification Made Simple
+          Car Identification Made Simple
         </Text>
 
         <View style={[styles.card, { backgroundColor: cardBg }]}>

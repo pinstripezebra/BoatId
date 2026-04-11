@@ -1,18 +1,18 @@
 /**
- * BoatId App Configuration
+ * CarId App Configuration
  * Central configuration file for the application
  */
 
 export const CONFIG = {
   // App Information
-  APP_NAME: 'BoatId',
+  APP_NAME: 'CarId',
   APP_VERSION: '1.0.0',
   
   // API Configuration (to be updated when backend is integrated)
   API_BASE_URL: 'http://localhost:8000',
   API_ENDPOINTS: {
     AUTH: '/auth',
-    BOATS: '/boats',
+    CARS: '/cars',
     USERS: '/users',
     IMAGES: '/images',
   },
@@ -26,9 +26,9 @@ export const CONFIG = {
   
   // Storage Configuration
   STORAGE_KEYS: {
-    USER_TOKEN: '@BoatId:userToken',
-    USER_DATA: '@BoatId:userData',
-    SETTINGS: '@BoatId:settings',
+    USER_TOKEN: '@CarId:userToken',
+    USER_DATA: '@CarId:userData',
+    SETTINGS: '@CarId:settings',
   },
   
   // Theme Colors

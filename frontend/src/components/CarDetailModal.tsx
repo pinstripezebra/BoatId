@@ -9,32 +9,32 @@ import {
   useColorScheme,
   ScrollView,
 } from 'react-native';
-import type {BoatCardData} from './BoatCard';
+import type {CarCardData} from './CarCard';
 
-export interface DetailBoatData extends BoatCardData {
+export interface DetailCarData extends CarCardData {
   year?: string;
   confidence?: string;
   model?: string;
 }
 
-interface BoatDetailModalProps {
+interface CarDetailModalProps {
   visible: boolean;
-  boat: DetailBoatData | null;
+  car: DetailCarData | null;
   onClose: () => void;
   isLiked?: boolean;
   onLikeToggle?: (id: string) => void;
 }
 
-const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose, isLiked, onLikeToggle}) => {
+const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, isLiked, onLikeToggle}) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [imageError, setImageError] = React.useState(false);
 
-  // Reset error state when boat changes
+  // Reset error state when car changes
   React.useEffect(() => {
     setImageError(false);
-  }, [boat?.id]);
+  }, [car?.id]);
 
-  if (!boat) return null;
+  if (!car) return null;
 
   const bgColor = isDarkMode ? '#1a1a1a' : '#ffffff';
   const textColor = isDarkMode ? '#ffffff' : '#333333';
@@ -46,25 +46,25 @@ const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose
       <View style={styles.overlay}>
         <View style={[styles.container, {backgroundColor: bgColor}]}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {boat.image && !imageError ? (
+            {car.image && !imageError ? (
               <Image
-                source={boat.image}
+                source={car.image}
                 style={styles.image}
                 resizeMode="cover"
                 onError={() => setImageError(true)}
               />
             ) : (
               <View style={styles.imagePlaceholder}>
-                <Text style={styles.placeholderEmoji}>🚤</Text>
+                <Text style={styles.placeholderEmoji}>🚗</Text>
               </View>
             )}
 
             <View style={styles.content}>
               <View style={styles.nameRow}>
-                <Text style={[styles.name, {color: textColor, flex: 1}]}>{boat.name}</Text>
+                <Text style={[styles.name, {color: textColor, flex: 1}]}>{car.name}</Text>
                 {onLikeToggle && (
                   <TouchableOpacity
-                    onPress={() => onLikeToggle(boat.id)}
+                    onPress={() => onLikeToggle(car.id)}
                     style={styles.likeButton}>
                     <Text style={styles.likeIcon}>{isLiked ? '♥' : '♡'}</Text>
                   </TouchableOpacity>
@@ -75,32 +75,32 @@ const BoatDetailModal: React.FC<BoatDetailModalProps> = ({visible, boat, onClose
 
               <View style={styles.detailRow}>
                 <Text style={[styles.label, {color: subtextColor}]}>Make</Text>
-                <Text style={[styles.value, {color: textColor}]}>{boat.make || 'Unknown'}</Text>
+                <Text style={[styles.value, {color: textColor}]}>{car.make || 'Unknown'}</Text>
               </View>
 
-              {boat.model && (
+              {car.model && (
                 <View style={styles.detailRow}>
                   <Text style={[styles.label, {color: subtextColor}]}>Model</Text>
-                  <Text style={[styles.value, {color: textColor}]}>{boat.model}</Text>
+                  <Text style={[styles.value, {color: textColor}]}>{car.model}</Text>
                 </View>
               )}
 
               <View style={styles.detailRow}>
                 <Text style={[styles.label, {color: subtextColor}]}>Type</Text>
-                <Text style={[styles.value, {color: textColor}]}>{boat.type || 'Unknown'}</Text>
+                <Text style={[styles.value, {color: textColor}]}>{car.type || 'Unknown'}</Text>
               </View>
 
-              {boat.year && (
+              {car.year && (
                 <View style={styles.detailRow}>
                   <Text style={[styles.label, {color: subtextColor}]}>Year</Text>
-                  <Text style={[styles.value, {color: textColor}]}>{boat.year}</Text>
+                  <Text style={[styles.value, {color: textColor}]}>{car.year}</Text>
                 </View>
               )}
 
-              {boat.confidence && (
+              {car.confidence && (
                 <View style={styles.detailRow}>
                   <Text style={[styles.label, {color: subtextColor}]}>Confidence</Text>
-                  <Text style={[styles.value, {color: textColor}]}>{boat.confidence}</Text>
+                  <Text style={[styles.value, {color: textColor}]}>{car.confidence}</Text>
                 </View>
               )}
             </View>
@@ -191,4 +191,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BoatDetailModal;
+export default CarDetailModal;

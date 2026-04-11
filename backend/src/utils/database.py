@@ -37,8 +37,8 @@ def create_tables():
     Create all tables in the database.
     """
     from models.user import User
-    from models.boat import BoatIdentification
-    from models.boat_popularity import BoatPopularity
-    from models.liked_boat import LikedBoat
+    from models.car import CarIdentification
+    from models.car_popularity import CarPopularity
+    from models.liked_car import LikedCar
     
     Base.metadata.create_all(bind=engine)

@@ -17,7 +17,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onPress }) => {
       onPress={onPress}
       activeOpacity={0.7}>
       <Text style={[styles.placeholder, {color: placeholderColor}]}>
-        🔍  Search boats...
+        🔍  Search cars...
       </Text>
     </TouchableOpacity>
   );

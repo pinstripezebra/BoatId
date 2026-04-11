@@ -9,31 +9,31 @@ import {
   useColorScheme,
   FlatList,
 } from 'react-native';
-import BoatCard from './BoatCard';
-import type { BoatCardData } from './BoatCard';
-import { BoatApiService } from '../services';
-import type { SearchResult } from '../services/boatApi';
+import CarCard from './CarCard';
+import type { CarCardData } from './CarCard';
+import { CarApiService } from '../services';
+import type { SearchResult } from '../services/carApi';
 
 interface SearchResultsScreenProps {
   onBack: () => void;
-  onBoatPress: (boat: any) => void;
+  onCarPress: (car: any) => void;
   isLiked: (id: string) => boolean;
   onLikeToggle: (id: string) => void;
 }
 
-const EXAMPLE_SEARCHES = ['Sailboat', 'Yamaha', 'Bowrider', 'Boston Whaler', 'Fishing boat', 'Pontoon'];
+const EXAMPLE_SEARCHES = ['Sedan', 'Toyota', 'SUV', 'Ford Mustang', 'Sports car', 'Tesla'];
 const PER_PAGE = 8;
 
 const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({
   onBack,
-  onBoatPress,
+  onCarPress,
   isLiked,
   onLikeToggle,
 }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [text, setText] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
-  const [results, setResults] = useState<BoatCardData[]>([]);
+  const [results, setResults] = useState<CarCardData[]>([]);
   const [rawResults, setRawResults] = useState<SearchResult[]>([]);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -55,19 +55,19 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  const mapResult = (item: SearchResult): BoatCardData => ({
+  const mapResult = (item: SearchResult): CarCardData => ({
     id: item.id.toString(),
     name: item.model
       ? `${item.make || ''} ${item.model}`.trim()
-      : item.make || 'Unknown Boat',
+      : item.make || 'Unknown Car',
     make: item.make || undefined,
-    type: item.boat_type || undefined,
+    type: item.car_type || undefined,
     image: item.image_url ? { uri: item.image_url } : undefined,
   });
 
   const fetchResults = useCallback(async (query: string, pageNum: number, append: boolean) => {
     try {
-      const data = await BoatApiService.searchBoats(query, pageNum, PER_PAGE);
+      const data = await CarApiService.searchCars(query, pageNum, PER_PAGE);
       const mapped = data.results.map(mapResult);
       setResults(prev => append ? [...prev, ...mapped] : mapped);
       setRawResults(prev => append ? [...prev, ...data.results] : data.results);
@@ -127,15 +127,15 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({
     setIsLoadingMore(false);
   };
 
-  const handleBoatPress = (item: BoatCardData, index: number) => {
+  const handleCarPress = (item: CarCardData, index: number) => {
     const raw = rawResults[index];
     if (raw) {
-      onBoatPress({
+      onCarPress({
         id: raw.id.toString(),
         name: item.name,
         make: raw.make,
         model: raw.model,
-        boatType: raw.boat_type,
+        carType: raw.car_type,
         yearEstimate: raw.year_estimate,
         confidence: raw.confidence,
         description: raw.identification_data?.description,
@@ -144,11 +144,11 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({
     }
   };
 
-  const renderItem = ({ item, index }: { item: BoatCardData; index: number }) => (
+  const renderItem = ({ item, index }: { item: CarCardData; index: number }) => (
     <View style={styles.cardWrapper}>
-      <BoatCard
+      <CarCard
         {...item}
-        onPress={() => handleBoatPress(item, index)}
+        onPress={() => handleCarPress(item, index)}
         isLiked={isLiked(item.id)}
         onLikeToggle={onLikeToggle}
       />
@@ -254,7 +254,7 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({
           <TextInput
             ref={inputRef}
             style={[styles.searchInput, { color: textColor }]}
-            placeholder="🔍  Search boats..."
+            placeholder="🔍  Search cars..."
             placeholderTextColor={isDarkMode ? '#888888' : '#999999'}
             value={text}
             onChangeText={handleChangeText}

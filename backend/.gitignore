@@ -77,3 +77,6 @@ logs/
 # Alembic
 alembic/versions/*.py
 !alembic/versions/__init__.py
+
+# Identification cache
+.identification_cache.json

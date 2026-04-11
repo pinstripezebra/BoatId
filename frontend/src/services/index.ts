@@ -1,19 +1,19 @@
-export { default as BoatApiService } from './boatApi';
+export { default as CarApiService } from './carApi';
 export { HttpClient } from './httpClient';
 export { API_BASE_URL } from '../config/api';
 
-// Export types from boatApi
+// Export types from carApi
 export type {
-  BoatIdentificationRequest,
-  BoatDetails,
-  BoatIdentificationResponse,
-  BoatIdentificationListResponse,
+  CarIdentificationRequest,
+  CarDetails,
+  CarIdentificationResponse,
+  CarIdentificationListResponse,
   SearchResponse,
-  NearbyBoat,
-  NearbyBoatsResponse,
-  PopularBoat,
-  PopularBoatsResponse,
-  LikedBoatIdsResponse,
-  UserLikedBoatsResponse,
+  NearbyCar,
+  NearbyCarsResponse,
+  PopularCar,
+  PopularCarsResponse,
+  LikedCarIdsResponse,
+  UserLikedCarsResponse,
   SearchResult,
-} from './boatApi';
+} from './carApi';

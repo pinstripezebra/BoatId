@@ -18,7 +18,7 @@ frontend/ios/
 frontend/android/
 frontend/__tests__/
 frontend/README.md
-start-boatid.
+start-carid.
 
 backend/deploy.py
 # Deployment logs (may contain secrets)

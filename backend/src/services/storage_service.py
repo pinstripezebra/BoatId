@@ -3,13 +3,13 @@ import json
 import uuid
 from datetime import datetime
 from sqlalchemy.orm import Session
-from models.boat import BoatIdentification
-from image_identification import BoatIdentificationResult
+from models.car import CarIdentification
+from image_identification import CarIdentificationResult
 from typing import List, Optional, Dict
 import os
 from uuid import UUID
 
-class BoatStorageService:
+class CarStorageService:
     def __init__(self, db_session: Session, s3_bucket: str, aws_region: str = None):
         self.db = db_session
         
@@ -33,7 +33,7 @@ class BoatStorageService:
         self, 
         image_filename: str,
         image_data: bytes,
-        result: BoatIdentificationResult,
+        result: CarIdentificationResult,
         user_id: Optional[UUID] = None,
         latitude: Optional[float] = None,
         longitude: Optional[float] = None
@@ -44,7 +44,7 @@ class BoatStorageService:
         timestamp = datetime.utcnow().strftime("%Y/%m/%d")
         unique_id = str(uuid.uuid4())
         file_extension = image_filename.split('.')[-1].lower()
-        s3_key = f"boat-images/{timestamp}/{unique_id}.{file_extension}"
+        s3_key = f"car-images/{timestamp}/{unique_id}.{file_extension}"
         
         try:
             # Upload image to S3 with better error handling
@@ -56,36 +56,36 @@ class BoatStorageService:
                 Metadata={
                     'original_filename': image_filename,
                     'upload_timestamp': datetime.utcnow().isoformat(),
-                    'is_boat': str(result.is_boat),
+                    'is_car': str(result.is_car),
                     'confidence': result.confidence or 'unknown'
                 }
             )
             
             # Prepare JSON data
             identification_json = {
-                'is_boat': result.is_boat,
+                'is_car': result.is_car,
                 'make': result.make,
                 'model': result.model,
                 'description': result.description,
                 'year': result.year,
                 'length': result.length,
-                'boat_type': result.boat_type,
+                'car_type': result.car_type,
                 'confidence': result.confidence,
-                'hull_material': result.hull_material,
+                'body_type': result.body_type,
                 'features': result.features or []
             }
             
             # Store in database
-            db_record = BoatIdentification(
+            db_record = CarIdentification(
                 user_id=user_id,
                 image_filename=image_filename,
                 s3_image_key=s3_key,
-                is_boat=result.is_boat,
+                is_car=result.is_car,
                 confidence=result.confidence,
                 identification_data=identification_json,
                 make=result.make,
                 model=result.model,
-                boat_type=result.boat_type,
+                car_type=result.car_type,
                 year_estimate=result.year,
                 latitude=latitude,
                 longitude=longitude
@@ -112,35 +112,35 @@ class BoatStorageService:
         self, 
         limit: int = 50,
         offset: int = 0,
-        is_boat: Optional[bool] = None,
+        is_car: Optional[bool] = None,
         make: Optional[str] = None,
-        boat_type: Optional[str] = None,
+        car_type: Optional[str] = None,
         confidence: Optional[str] = None,
         user_id: Optional[UUID] = None
     ) -> Dict:
         """Get identification results with pagination and filtering"""
         
-        query = self.db.query(BoatIdentification)
+        query = self.db.query(CarIdentification)
         
         # Filter by user
         if user_id is not None:
-            query = query.filter(BoatIdentification.user_id == user_id)
+            query = query.filter(CarIdentification.user_id == user_id)
         
         # Apply filters
-        if is_boat is not None:
-            query = query.filter(BoatIdentification.is_boat == is_boat)
+        if is_car is not None:
+            query = query.filter(CarIdentification.is_car == is_car)
         if make:
-            query = query.filter(BoatIdentification.make.ilike(f"%{make}%"))
-        if boat_type:
-            query = query.filter(BoatIdentification.boat_type.ilike(f"%{boat_type}%"))
+            query = query.filter(CarIdentification.make.ilike(f"%{make}%"))
+        if car_type:
+            query = query.filter(CarIdentification.car_type.ilike(f"%{car_type}%"))
         if confidence:
-            query = query.filter(BoatIdentification.confidence == confidence)
+            query = query.filter(CarIdentification.confidence == confidence)
         
         # Get total count
         total_count = query.count()
         
         # Apply pagination and ordering
-        results = query.order_by(BoatIdentification.created_at.desc())\
+        results = query.order_by(CarIdentification.created_at.desc())\
                       .offset(offset)\
                       .limit(limit)\
                       .all()
@@ -158,7 +158,7 @@ class BoatStorageService:
             except Exception as e:
                 # Graceful fallback if S3 URL generation fails
                 print(f"Warning: Could not generate presigned URL for {record.s3_image_key}: {e}")
-                image_url = f"/api/boats/identifications/{record.id}/image"  # Fallback to API endpoint
+                image_url = f"/api/cars/identifications/{record.id}/image"  # Fallback to API endpoint
             
             formatted_results.append({
                 'id': record.id,
@@ -166,7 +166,7 @@ class BoatStorageService:
                 'filename': record.image_filename,
                 'created_at': record.created_at.isoformat(),
                 'identification_data': record.identification_data,
-                'is_boat': record.is_boat
+                'is_car': record.is_car
             })
         
         return {
@@ -179,8 +179,8 @@ class BoatStorageService:
     def get_identification_by_id(self, identification_id: int) -> Optional[Dict]:
         """Get specific identification result by ID"""
         
-        record = self.db.query(BoatIdentification)\
-                       .filter(BoatIdentification.id == identification_id)\
+        record = self.db.query(CarIdentification)\
+                       .filter(CarIdentification.id == identification_id)\
                        .first()
         
         if not record:
@@ -195,7 +195,7 @@ class BoatStorageService:
             )
         except Exception as e:
             print(f"Warning: Could not generate presigned URL: {e}")
-            image_url = f"/api/boats/identifications/{record.id}/image"
+            image_url = f"/api/cars/identifications/{record.id}/image"
         
         return {
             'id': record.id,
@@ -203,13 +203,13 @@ class BoatStorageService:
             'filename': record.image_filename,
             'created_at': record.created_at.isoformat(),
             'identification_data': record.identification_data,
-            'is_boat': record.is_boat
+            'is_car': record.is_car
         }
     
-    def search_boats(self, search_term: str, limit: int = 50, offset: int = 0) -> Dict:
-        """Search boats using PostgreSQL full-text search, sorted by popularity."""
+    def search_cars(self, search_term: str, limit: int = 50, offset: int = 0) -> Dict:
+        """Search cars using PostgreSQL full-text search, sorted by popularity."""
         from sqlalchemy import func, text
-        from models.boat_popularity import BoatPopularity
+        from models.car_popularity import CarPopularity
 
         # Build tsquery from search term — split words and join with &
         words = search_term.strip().split()
@@ -222,13 +222,13 @@ class BoatStorageService:
         # Base query: match against search_vector, join with popularity
         base_query = (
             self.db.query(
-                BoatIdentification,
-                func.coalesce(BoatPopularity.likes, 0).label('likes'),
-                func.ts_rank(BoatIdentification.search_vector, ts_query).label('rank'),
+                CarIdentification,
+                func.coalesce(CarPopularity.likes, 0).label('likes'),
+                func.ts_rank(CarIdentification.search_vector, ts_query).label('rank'),
             )
-            .outerjoin(BoatPopularity, BoatPopularity.id == BoatIdentification.id)
-            .filter(BoatIdentification.is_boat == True)
-            .filter(BoatIdentification.search_vector.op('@@')(ts_query))
+            .outerjoin(CarPopularity, CarPopularity.id == CarIdentification.id)
+            .filter(CarIdentification.is_car == True)
+            .filter(CarIdentification.search_vector.op('@@')(ts_query))
         )
 
         total_count = base_query.count()
@@ -251,14 +251,14 @@ class BoatStorageService:
                 )
             except Exception as e:
                 print(f"Warning: Could not generate presigned URL: {e}")
-                image_url = f"/api/boats/identifications/{record.id}/image"
+                image_url = f"/api/cars/identifications/{record.id}/image"
 
             results.append({
                 'id': record.id,
                 'image_url': image_url,
                 'make': record.make,
                 'model': record.model,
-                'boat_type': record.boat_type,
+                'car_type': record.car_type,
                 'year_estimate': record.year_estimate,
                 'confidence': record.confidence,
                 'identification_data': record.identification_data,

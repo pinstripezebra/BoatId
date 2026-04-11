@@ -15,19 +15,19 @@ import {
   Alert,
 } from 'react-native';
 import { AuthService } from '../services/authService';
-import { BoatApiService } from '../services';
+import { CarApiService } from '../services';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
 interface ProfileScreenProps {
   onLogout: () => void;
 }
 
-interface GridBoat {
+interface GridCar {
   id: string;
   name: string;
   image_url?: string;
   make?: string;
-  boat_type?: string;
+  car_type?: string;
 }
 
 type TabType = 'posts' | 'liked';
@@ -40,8 +40,8 @@ const TILE_SIZE = (screenWidth - 40 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMN
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState<TabType>('posts');
-  const [posts, setPosts] = useState<GridBoat[]>([]);
-  const [likedBoats, setLikedBoats] = useState<GridBoat[]>([]);
+  const [posts, setPosts] = useState<GridCar[]>([]);
+  const [likedCars, setLikedCars] = useState<GridCar[]>([]);
   const [postsPage, setPostsPage] = useState(1);
   const [likedPage, setLikedPage] = useState(1);
   const [postsHasMore, setPostsHasMore] = useState(true);
@@ -67,15 +67,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
 
   const loadPosts = useCallback(async (page: number, append: boolean = false) => {
     try {
-      const data = await BoatApiService.getIdentifications(page, 8, { isBoat: true });
-      const mapped: GridBoat[] = data.results.map(item => ({
+      const data = await CarApiService.getIdentifications(page, 8, { isCar: true });
+      const mapped: GridCar[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.identification_data?.model
           ? `${item.identification_data.make || ''} ${item.identification_data.model}`.trim()
-          : item.identification_data?.make || 'Unknown Boat',
+          : item.identification_data?.make || 'Unknown Car',
         image_url: item.image_url || undefined,
         make: item.identification_data?.make,
-        boat_type: item.identification_data?.boat_type,
+        car_type: item.identification_data?.car_type,
       }));
       setPosts(prev => append ? [...prev, ...mapped] : mapped);
       setPostsTotalCount(data.total_count);
@@ -85,34 +85,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
     }
   }, []);
 
-  const loadLikedBoats = useCallback(async (page: number, append: boolean = false) => {
+  const loadLikedCars = useCallback(async (page: number, append: boolean = false) => {
     try {
-      const data = await BoatApiService.getUserLikedBoats(page, 8);
-      const mapped: GridBoat[] = data.results.map(item => ({
+      const data = await CarApiService.getUserLikedCars(page, 8);
+      const mapped: GridCar[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.model
           ? `${item.make || ''} ${item.model}`.trim()
-          : item.make || 'Unknown Boat',
+          : item.make || 'Unknown Car',
         image_url: item.image_url || undefined,
         make: item.make || undefined,
-        boat_type: item.boat_type || undefined,
+        car_type: item.car_type || undefined,
       }));
-      setLikedBoats(prev => append ? [...prev, ...mapped] : mapped);
+      setLikedCars(prev => append ? [...prev, ...mapped] : mapped);
       setLikedTotalCount(data.total_count);
       setLikedHasMore(page < data.total_pages);
     } catch (error) {
-      console.error('Failed to load liked boats:', error);
+      console.error('Failed to load liked cars:', error);
     }
   }, []);
 
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
-      await Promise.all([loadPosts(1), loadLikedBoats(1)]);
+      await Promise.all([loadPosts(1), loadLikedCars(1)]);
       setIsLoading(false);
     };
     init();
-  }, [loadPosts, loadLikedBoats]);
+  }, [loadPosts, loadLikedCars]);
 
   const handleLoadMore = async () => {
     if (isLoadingMore) return;
@@ -123,7 +123,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
       setPostsPage(nextPage);
     } else if (activeTab === 'liked' && likedHasMore) {
       const nextPage = likedPage + 1;
-      await loadLikedBoats(nextPage, true);
+      await loadLikedCars(nextPage, true);
       setLikedPage(nextPage);
     }
     setIsLoadingMore(false);
@@ -143,17 +143,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
     }
   };
 
-  const currentData = activeTab === 'posts' ? posts : likedBoats;
+  const currentData = activeTab === 'posts' ? posts : likedCars;
   const hasMore = activeTab === 'posts' ? postsHasMore : likedHasMore;
   const totalCount = activeTab === 'posts' ? postsTotalCount : likedTotalCount;
 
-  const renderGridItem = ({ item }: { item: GridBoat }) => (
+  const renderGridItem = ({ item }: { item: GridCar }) => (
     <View style={[styles.gridItem, { backgroundColor: cardBg }]}>
       {item.image_url ? (
         <Image source={{ uri: item.image_url }} style={styles.gridImage} resizeMode="cover" />
       ) : (
         <View style={[styles.gridImage, styles.gridPlaceholder]}>
-          <Text style={styles.placeholderEmoji}>🚤</Text>
+          <Text style={styles.placeholderEmoji}>🚗</Text>
         </View>
       )}
       <Text style={[styles.gridName, { color: textColor }]} numberOfLines={1}>
@@ -282,7 +282,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
           <Text style={[styles.emptyText, { color: subtextColor }]}>
-            {activeTab === 'posts' ? 'No boats posted yet' : 'No liked boats yet'}
+            {activeTab === 'posts' ? 'No cars posted yet' : 'No liked cars yet'}
           </Text>
         }
         renderItem={renderGridItem}

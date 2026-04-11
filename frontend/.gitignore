@@ -56,7 +56,7 @@ yarn-error.log
 # Bundle artifact
 *.jsbundle
 
-# Boat images (copied from data/images/ at build time)
+# Car images (copied from data/images/ at build time)
 src/assets/images/
 
 # Ruby / CocoaPods

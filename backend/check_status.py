@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AppRunner Status Checker
-Check the status of your BoatId AppRunner services and retrieve logs
+Check the status of your CarId AppRunner services and retrieve logs
 """
 
 import boto3
@@ -21,15 +21,15 @@ def check_service_status(service_arn=None):
             # Check specific service
             services_to_check = [service_arn]
         else:
-            # List all services and filter for BoatId
+            # List all services and filter for CarId
             response = apprunner.list_services()
             services_to_check = [
                 service['ServiceArn'] for service in response['ServiceSummaryList']
-                if 'boatid' in service['ServiceName'].lower()
+                if 'carid' in service['ServiceName'].lower()
             ]
             
         if not services_to_check:
-            print("❌ No BoatId AppRunner services found")
+            print("❌ No CarId AppRunner services found")
             return
             
         for service_arn in services_to_check:
@@ -104,10 +104,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python check_status.py                                    # Check all BoatId services
+  python check_status.py                                    # Check all CarId services
   python check_status.py --service-arn arn:aws:apprunner:... # Check specific service
-  python check_status.py --logs boatid-backend-012f4805     # Get logs for specific service
-  python check_status.py --logs boatid-backend-012f4805 --lines 100  # Get more logs
+  python check_status.py --logs CarId-backend-012f4805     # Get logs for specific service
+  python check_status.py --logs CarId-backend-012f4805 --lines 100  # Get more logs
         """
     )
     

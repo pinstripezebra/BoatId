@@ -1,13 +1,13 @@
-# BoatId Backend - AWS Deployment
+# CarId Backend - AWS Deployment
 
-This directory contains the FastAPI backend for the BoatId boat identification application, configured for deployment on AWS Fargate with an Application Load Balancer.
+This directory contains the FastAPI backend for the CarId car identification application, configured for deployment on AWS Fargate with an Application Load Balancer.
 
 ## Architecture
 
 - **Backend**: FastAPI with Python 3.11
 - **Database**: AWS RDS PostgreSQL (existing: farmzilla.c16uug8oqgmf.us-west-2.rds.amazonaws.com)
 - **Storage**: AWS S3 (existing: lsee-farmzilla-images)
-- **AI**: Anthropic Claude for boat identification
+- **AI**: Anthropic Claude for car identification
 - **Deployment**: AWS ECS Fargate with ALB (via `deploy_fargate.py`)
 - **Auth**: JWT access tokens (30 min) + database-backed refresh tokens (30 days)
 
@@ -39,7 +39,7 @@ cp iam-policy.json.template iam-policy.json
 
 ### 2. Initialize Database
 
-Before deploying, ensure the database schema is up to date (includes `users`, `boat_identifications`, and `refresh_tokens` tables):
+Before deploying, ensure the database schema is up to date (includes `users`, `car_identifications`, and `refresh_tokens` tables):
 
 ```bash
 cd backend/src
@@ -91,7 +91,7 @@ Test endpoints:
 - `GET /` - Basic health check
 - `GET /health` - Service health
 - `GET /health/detailed` - Detailed health with DB/S3 status
-- `POST /api/v1/boats/identify` - Boat identification
+- `POST /api/v1/cars/identify` - car identification
 
 ## Auth Endpoints
 
@@ -159,7 +159,7 @@ uvicorn main:app --reload
 
 ## Monitoring
 
-- **Logs**: CloudWatch log group `/ecs/boatid-backend`
+- **Logs**: CloudWatch log group `/ecs/CarId-backend`
 - **Metrics**: ECS service metrics in AWS Console (CPU, memory)
 - **Health**: Use `/health/detailed` endpoint via ALB URL
 
@@ -218,14 +218,14 @@ The script detects the existing service and performs a rolling update — no dow
 
 ```bash
 # Check ECS service status
-aws ecs describe-services --cluster boatid-backend-cluster --services boatid-backend --region us-west-2
+aws ecs describe-services --cluster CarId-backend-cluster --services CarId-backend --region us-west-2
 
 # View CloudWatch logs
-aws logs tail /ecs/boatid-backend --region us-west-2
+aws logs tail /ecs/CarId-backend --region us-west-2
 
 # Check running tasks
-aws ecs list-tasks --cluster boatid-backend-cluster --service-name boatid-backend --region us-west-2
+aws ecs list-tasks --cluster CarId-backend-cluster --service-name CarId-backend --region us-west-2
 
 # Force a new deployment without code changes
-aws ecs update-service --cluster boatid-backend-cluster --service boatid-backend --force-new-deployment --region us-west-2
+aws ecs update-service --cluster CarId-backend-cluster --service CarId-backend --force-new-deployment --region us-west-2
 ```

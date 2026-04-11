@@ -1,43 +1,43 @@
 import { HttpClient } from './httpClient';
 
-export interface BoatIdentificationRequest {
+export interface CarIdentificationRequest {
   image: File | Blob;
   requestedFields?: string[];
   storeResults?: boolean;
 }
 
-export interface BoatDetails {
+export interface CarDetails {
   make?: string;
   model?: string;
   description?: string;
   year?: string;
   length?: string;
-  boat_type?: string;
-  hull_material?: string;
+  car_type?: string;
+  body_type?: string;
   features?: string[];
 }
 
-export interface BoatIdentificationResponse {
+export interface CarIdentificationResponse {
   success: boolean;
   identification_id?: number;
   filename: string;
-  is_boat: boolean;
-  boat_details?: BoatDetails;
+  is_car: boolean;
+  car_details?: CarDetails;
   confidence?: string;
   message?: string;
 }
 
-export interface BoatIdentificationListResponse {
+export interface CarIdentificationListResponse {
   results: Array<{
     id: number;
     image_url: string;
     filename: string;
     created_at: string;
-    identification_data: BoatDetails & {
-      is_boat: boolean;
+    identification_data: CarDetails & {
+      is_car: boolean;
       confidence: string;
     };
-    is_boat: boolean;
+    is_car: boolean;
   }>;
   total_count: number;
   page_size: number;
@@ -52,11 +52,11 @@ export interface SearchResult {
   image_url: string;
   make: string | null;
   model: string | null;
-  boat_type: string | null;
+  car_type: string | null;
   year_estimate: string | null;
   confidence: string | null;
-  identification_data: BoatDetails & {
-    is_boat: boolean;
+  identification_data: CarDetails & {
+    is_car: boolean;
     confidence: string;
   };
   likes: number;
@@ -73,55 +73,55 @@ export interface SearchResponse {
   total_pages: number;
 }
 
-export interface NearbyBoat {
+export interface NearbyCar {
   id: number;
   latitude: number;
   longitude: number;
   make: string | null;
   model: string | null;
-  boat_type: string | null;
+  car_type: string | null;
   image_url: string;
   created_at: string | null;
 }
 
-export interface NearbyBoatsResponse {
-  results: NearbyBoat[];
+export interface NearbyCarsResponse {
+  results: NearbyCar[];
   count: number;
   center: { latitude: number; longitude: number };
   radius_km: number;
 }
 
-export interface PopularBoat {
+export interface PopularCar {
   id: number;
   make: string | null;
   model: string | null;
-  boat_type: string | null;
+  car_type: string | null;
   year_estimate: string | null;
   confidence: string | null;
   image_url: string;
   likes: number;
-  identification_data: BoatDetails;
+  identification_data: CarDetails;
 }
 
-export interface PopularBoatsResponse {
-  results: PopularBoat[];
+export interface PopularCarsResponse {
+  results: PopularCar[];
   count: number;
 }
 
-export interface LikedBoatIdsResponse {
-  liked_boat_ids: number[];
+export interface LikedCarIdsResponse {
+  liked_car_ids: number[];
 }
 
-export interface UserLikedBoatsResponse {
+export interface UserLikedCarsResponse {
   results: Array<{
     id: number;
     make: string | null;
     model: string | null;
-    boat_type: string | null;
+    car_type: string | null;
     year_estimate: string | null;
     confidence: string | null;
     image_url: string;
-    identification_data: BoatDetails;
+    identification_data: CarDetails;
   }>;
   total_count: number;
   page: number;
@@ -129,7 +129,7 @@ export interface UserLikedBoatsResponse {
   total_pages: number;
 }
 
-export class BoatApiService {
+export class CarApiService {
   /**
    * Create FormData for file upload
    */
@@ -143,7 +143,7 @@ export class BoatApiService {
     const formData = new FormData();
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `boat_image_${timestamp}.jpg`;
+    const filename = `car_image_${timestamp}.jpg`;
     
     // React Native FormData accepts { uri, type, name } objects directly
     const file = {
@@ -162,122 +162,122 @@ export class BoatApiService {
   }
 
   /**
-   * Identify boat from image
+   * Identify car from image
    */
-  static async identifyBoat(
+  static async identifyCar(
     imageUri: string,
-    requestedFields: string[] = ['make', 'model', 'description', 'boat_type'],
+    requestedFields: string[] = ['make', 'model', 'description', 'car_type'],
     storeResults: boolean = true,
     latitude?: number,
     longitude?: number
-  ): Promise<BoatIdentificationResponse> {
+  ): Promise<CarIdentificationResponse> {
     const formData = this.createFormData(imageUri, requestedFields, storeResults, latitude, longitude);
-    return await HttpClient.uploadFile<BoatIdentificationResponse>('api/v1/boats/identify', formData);
+    return await HttpClient.uploadFile<CarIdentificationResponse>('api/v1/cars/identify', formData);
   }
 
   /**
-   * Get paginated list of boat identifications
+   * Get paginated list of car identifications
    */
   static async getIdentifications(
     page: number = 1,
     perPage: number = 50,
     filters: {
-      isBoat?: boolean;
+      isCar?: boolean;
       make?: string;
-      boatType?: string;
+      carType?: string;
       confidence?: 'high' | 'medium' | 'low';
     } = {}
-  ): Promise<BoatIdentificationListResponse> {
+  ): Promise<CarIdentificationListResponse> {
     const queryParams = new URLSearchParams({
       page: page.toString(),
       per_page: perPage.toString(),
     });
 
-    if (filters.isBoat !== undefined) queryParams.append('is_boat', filters.isBoat.toString());
+    if (filters.isCar !== undefined) queryParams.append('is_car', filters.isCar.toString());
     if (filters.make) queryParams.append('make', filters.make);
-    if (filters.boatType) queryParams.append('boat_type', filters.boatType);
+    if (filters.carType) queryParams.append('car_type', filters.carType);
     if (filters.confidence) queryParams.append('confidence', filters.confidence);
 
-    return await HttpClient.get<BoatIdentificationListResponse>(`api/v1/boats/identifications?${queryParams.toString()}`);
+    return await HttpClient.get<CarIdentificationListResponse>(`api/v1/cars/identifications?${queryParams.toString()}`);
   }
 
   /**
-   * Get specific boat identification by ID
+   * Get specific car identification by ID
    */
   static async getIdentificationById(id: number) {
-    return await HttpClient.get(`api/v1/boats/identifications/${id}`);
+    return await HttpClient.get(`api/v1/cars/identifications/${id}`);
   }
 
   /**
-   * Search boat identifications
+   * Search car identifications
    */
-  static async searchBoats(query: string, page: number = 1, perPage: number = 8): Promise<SearchResponse> {
+  static async searchCars(query: string, page: number = 1, perPage: number = 8): Promise<SearchResponse> {
     const queryParams = new URLSearchParams({ q: query.trim(), page: page.toString(), per_page: perPage.toString() });
-    return await HttpClient.get<SearchResponse>(`api/v1/boats/search?${queryParams.toString()}`);
+    return await HttpClient.get<SearchResponse>(`api/v1/cars/search?${queryParams.toString()}`);
   }
 
   /**
    * Get available identification fields
    */
   static async getAvailableFields() {
-    return await HttpClient.get('api/v1/boats/identification-fields');
+    return await HttpClient.get('api/v1/cars/identification-fields');
   }
 
   /**
-   * Get nearby boat identifications within a radius
+   * Get nearby car identifications within a radius
    */
-  static async getNearbyBoats(
+  static async getNearbyCars(
     latitude: number,
     longitude: number,
     radiusKm: number = 50
-  ): Promise<NearbyBoatsResponse> {
+  ): Promise<NearbyCarsResponse> {
     const queryParams = new URLSearchParams({
       latitude: latitude.toString(),
       longitude: longitude.toString(),
       radius_km: radiusKm.toString(),
     });
-    return await HttpClient.get<NearbyBoatsResponse>(`api/v1/boats/nearby?${queryParams.toString()}`);
+    return await HttpClient.get<NearbyCarsResponse>(`api/v1/cars/nearby?${queryParams.toString()}`);
   }
 
   /**
-   * Like a boat
+   * Like a car
    */
-  static async likeBoat(boatId: number): Promise<void> {
-    await HttpClient.post(`api/v1/boats/${boatId}/like`, {});
+  static async likeCar(carId: number): Promise<void> {
+    await HttpClient.post(`api/v1/cars/${carId}/like`, {});
   }
 
   /**
-   * Unlike a boat
+   * Unlike a car
    */
-  static async unlikeBoat(boatId: number): Promise<void> {
-    await HttpClient.delete(`api/v1/boats/${boatId}/like`);
+  static async unlikeCar(carId: number): Promise<void> {
+    await HttpClient.delete(`api/v1/cars/${carId}/like`);
   }
 
   /**
-   * Get popular boats sorted by likes
+   * Get popular cars sorted by likes
    */
-  static async getPopularBoats(limit: number = 5): Promise<PopularBoatsResponse> {
-    return await HttpClient.get<PopularBoatsResponse>(`api/v1/boats/popular?limit=${limit}`);
+  static async getPopularCars(limit: number = 5): Promise<PopularCarsResponse> {
+    return await HttpClient.get<PopularCarsResponse>(`api/v1/cars/popular?limit=${limit}`);
   }
 
   /**
-   * Get list of boat IDs the current user has liked
+   * Get list of car IDs the current user has liked
    */
-  static async getLikedBoatIds(): Promise<LikedBoatIdsResponse> {
-    return await HttpClient.get<LikedBoatIdsResponse>('api/v1/boats/liked');
+  static async getLikedCarIds(): Promise<LikedCarIdsResponse> {
+    return await HttpClient.get<LikedCarIdsResponse>('api/v1/cars/liked');
   }
 
   /**
-   * Get paginated boat details for boats the current user has liked
+   * Get paginated car details for cars the current user has liked
    */
-  static async getUserLikedBoats(page: number = 1, perPage: number = 8): Promise<UserLikedBoatsResponse> {
+  static async getUserLikedCars(page: number = 1, perPage: number = 8): Promise<UserLikedCarsResponse> {
     const queryParams = new URLSearchParams({
       page: page.toString(),
       per_page: perPage.toString(),
     });
-    return await HttpClient.get<UserLikedBoatsResponse>(`api/v1/boats/user-liked?${queryParams.toString()}`);
+    return await HttpClient.get<UserLikedCarsResponse>(`api/v1/cars/user-liked?${queryParams.toString()}`);
   }
 }
 
 // Export types and service
-export default BoatApiService;
+export default CarApiService;

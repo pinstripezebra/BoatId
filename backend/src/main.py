@@ -11,15 +11,15 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from utils.rate_limit import limiter
-from api.routes import auth, boats, users
+from api.routes import auth, cars, users
 
 # Security event logger
-security_logger = logging.getLogger("boatid.security")
+security_logger = logging.getLogger("carid.security")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 app = FastAPI(
-    title="BoatId API",
-    description="Boat identification service",
+    title="CarId API",
+    description="Car identification service",
     version="1.0.0"
 )
 
@@ -43,16 +43,16 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
-app.include_router(boats.router, prefix="/api/v1/boats", tags=["boats"])
+app.include_router(cars.router, prefix="/api/v1/cars", tags=["cars"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 
 @app.get("/")
 async def root():
-    return {"message": "BoatId API is running", "version": "1.0.0"}
+    return {"message": "CarId API is running", "version": "1.0.0"}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "boatid-backend"}
+    return {"status": "healthy", "service": "carid-backend"}
 
 @app.get("/health/detailed")
 async def detailed_health_check():
@@ -63,7 +63,7 @@ async def detailed_health_check():
     
     health_status = {
         "status": "healthy",
-        "service": "boatid-backend",
+        "service": "carid-backend",
         "timestamp": "2024-01-01T00:00:00Z",
         "checks": {}
     }
