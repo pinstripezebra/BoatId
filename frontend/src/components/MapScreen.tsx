@@ -110,6 +110,9 @@ const MapScreen: React.FC<MapScreenProps> = ({ onCarPress }) => {
       type: car.car_type || undefined,
       model: car.model || undefined,
       image: car.image_url ? { uri: car.image_url } : undefined,
+      year: car.year_estimate || undefined,
+      confidence: car.confidence || undefined,
+      identification_data: car.identification_data || undefined,
     };
     onCarPress(detailData);
   };
@@ -139,8 +142,6 @@ const MapScreen: React.FC<MapScreenProps> = ({ onCarPress }) => {
           <Marker
             key={car.id}
             coordinate={{ latitude: car.latitude, longitude: car.longitude }}
-            title={car.make || 'Car'}
-            description={car.car_type || undefined}
             onPress={() => handleMarkerPress(car)}
           />
         ))}
