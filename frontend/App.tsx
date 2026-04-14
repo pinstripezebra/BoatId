@@ -37,7 +37,6 @@ import SearchResultsScreen from './src/components/SearchResultsScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { CarApiService } from './src/services';
-import type { CarCardData } from './src/components/CarCard';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -50,9 +49,9 @@ function App(): React.JSX.Element {
   const [showPreviousResults, setShowPreviousResults] = useState(false);
   const [selectedCar, setSelectedCar] = useState<DetailCarData | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('home');
-  const [userCars, setUserCars] = useState<CarCardData[]>([]);
-  const [popularCars, setPopularCars] = useState<CarCardData[]>([]);
-  const [nearbyCars, setNearbyCars] = useState<CarCardData[]>([]);
+  const [userCars, setUserCars] = useState<DetailCarData[]>([]);
+  const [popularCars, setPopularCars] = useState<DetailCarData[]>([]);
+  const [nearbyCars, setNearbyCars] = useState<DetailCarData[]>([]);
   const [likedCarIds, setLikedCarIds] = useState<Set<string>>(new Set());
 
   const backgroundStyle = {
@@ -91,14 +90,18 @@ function App(): React.JSX.Element {
   const loadUserCars = useCallback(async () => {
     try {
       const data = await CarApiService.getIdentifications(1, 10, { isCar: true });
-      const mapped: CarCardData[] = data.results.map(item => ({
+      const mapped: DetailCarData[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.identification_data?.model
           ? `${item.identification_data.make || ''} ${item.identification_data.model}`.trim()
           : item.identification_data?.make || 'Unknown Car',
         make: item.identification_data?.make,
+        model: item.identification_data?.model,
         type: item.identification_data?.car_type,
+        year: item.identification_data?.year,
+        confidence: item.identification_data?.confidence as string | undefined,
         image: item.image_url ? { uri: item.image_url } : undefined,
+        identification_data: item.identification_data,
       }));
       setUserCars(mapped);
     } catch (error) {
@@ -109,14 +112,18 @@ function App(): React.JSX.Element {
   const loadPopularCars = useCallback(async () => {
     try {
       const data = await CarApiService.getPopularCars(5);
-      const mapped: CarCardData[] = data.results.map(item => ({
+      const mapped: DetailCarData[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.model
           ? `${item.make || ''} ${item.model}`.trim()
           : item.make || 'Unknown Car',
         make: item.make || undefined,
+        model: item.model || undefined,
         type: item.car_type || undefined,
+        year: item.year_estimate || undefined,
+        confidence: item.confidence || undefined,
         image: item.image_url ? { uri: item.image_url } : undefined,
+        identification_data: item.identification_data,
       }));
       setPopularCars(mapped);
     } catch (error) {
@@ -128,14 +135,18 @@ function App(): React.JSX.Element {
     try {
       // Use a broad radius from a central US location to get varied results
       const data = await CarApiService.getNearbyCars(39.8, -98.6, 5000);
-      const mapped: CarCardData[] = data.results.slice(0, 5).map(item => ({
+      const mapped: DetailCarData[] = data.results.slice(0, 5).map(item => ({
         id: item.id.toString(),
         name: item.model
           ? `${item.make || ''} ${item.model}`.trim()
           : item.make || 'Unknown Car',
         make: item.make || undefined,
+        model: item.model || undefined,
         type: item.car_type || undefined,
+        year: item.year_estimate || undefined,
+        confidence: item.confidence || undefined,
         image: item.image_url ? { uri: item.image_url } : undefined,
+        identification_data: item.identification_data,
       }));
       setNearbyCars(mapped);
     } catch (error) {
@@ -294,7 +305,7 @@ ${details?.description || ''}`;
       />
 
       {activeTab === 'profile' ? (
-        <ProfileScreen onLogout={handleLogout} />
+        <ProfileScreen onLogout={handleLogout} onCarPress={(car) => setSelectedCar(car)} />
       ) : activeTab === 'map' ? (
         <MapScreen onCarPress={setSelectedCar} />
       ) : activeTab === 'search' ? (
@@ -328,11 +339,11 @@ ${details?.description || ''}`;
 
           <SearchBar onPress={() => setActiveTab('search')} />
 
-          <HorizontalCarList title="Popular Cars" cars={popularCars} onCarPress={setSelectedCar} maxItems={5} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
-          <HorizontalCarList title="Cars Near You" cars={nearbyCars} onCarPress={setSelectedCar} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
+          <HorizontalCarList title="Popular Cars" cars={popularCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} maxItems={5} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
+          <HorizontalCarList title="Cars Near You" cars={nearbyCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
 
           {userCars.length > 0 && (
-            <HorizontalCarList title="Your Cars" cars={userCars} onCarPress={setSelectedCar} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
+            <HorizontalCarList title="Your Cars" cars={userCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
           )}
         </ScrollView>
       )}

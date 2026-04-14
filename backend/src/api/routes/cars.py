@@ -606,7 +606,10 @@ async def get_nearby_cars(
             'make': record.make,
             'model': record.model,
             'car_type': record.car_type,
+            'year_estimate': record.year_estimate,
+            'confidence': record.confidence,
             'image_url': image_url,
+            'identification_data': record.identification_data,
             'created_at': record.created_at.isoformat() if record.created_at else None,
         })
     

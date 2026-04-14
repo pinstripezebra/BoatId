@@ -80,7 +80,10 @@ export interface NearbyCar {
   make: string | null;
   model: string | null;
   car_type: string | null;
+  year_estimate: string | null;
+  confidence: string | null;
   image_url: string;
+  identification_data: CarDetails;
   created_at: string | null;
 }
 

@@ -16,10 +16,13 @@ import {
 } from 'react-native';
 import { AuthService } from '../services/authService';
 import { CarApiService } from '../services';
+import type { CarDetails } from '../services/carApi';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
+import type { DetailCarData } from './CarDetailModal';
 
 interface ProfileScreenProps {
   onLogout: () => void;
+  onCarPress?: (car: DetailCarData) => void;
 }
 
 interface GridCar {
@@ -37,7 +40,7 @@ const NUM_COLUMNS = 2;
 const screenWidth = Dimensions.get('window').width;
 const TILE_SIZE = (screenWidth - 40 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [posts, setPosts] = useState<GridCar[]>([]);
@@ -147,8 +150,42 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
   const hasMore = activeTab === 'posts' ? postsHasMore : likedHasMore;
   const totalCount = activeTab === 'posts' ? postsTotalCount : likedTotalCount;
 
+  const handleGridItemPress = async (item: GridCar) => {
+    if (!onCarPress) return;
+    try {
+      const data = await CarApiService.getIdentifications(1, 50, { isCar: true });
+      const match = data.results.find(r => r.id.toString() === item.id);
+      const idData = match?.identification_data;
+      const detail: DetailCarData = {
+        id: item.id,
+        name: item.name,
+        image: item.image_url ? { uri: item.image_url } : undefined,
+        type: item.car_type,
+        make: item.make,
+        model: idData?.model,
+        year: idData?.year,
+        confidence: (idData as any)?.confidence,
+        identification_data: idData ? {
+          make: idData.make,
+          model: idData.model,
+          description: idData.description,
+          year: idData.year,
+          car_type: idData.car_type,
+          body_type: idData.body_type,
+          features: idData.features,
+        } : undefined,
+      };
+      onCarPress(detail);
+    } catch (error) {
+      console.error('Failed to load car details:', error);
+    }
+  };
+
   const renderGridItem = ({ item }: { item: GridCar }) => (
-    <View style={[styles.gridItem, { backgroundColor: cardBg }]}>
+    <TouchableOpacity
+      style={[styles.gridItem, { backgroundColor: cardBg }]}
+      onPress={() => handleGridItemPress(item)}
+      activeOpacity={0.7}>
       {item.image_url ? (
         <Image source={{ uri: item.image_url }} style={styles.gridImage} resizeMode="cover" />
       ) : (
@@ -159,7 +196,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout }) => {
       <Text style={[styles.gridName, { color: textColor }]} numberOfLines={1}>
         {item.name}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderHeader = () => (
