@@ -280,7 +280,6 @@ export class CarApiService {
     });
     return await HttpClient.get<UserLikedCarsResponse>(`api/v1/cars/user-liked?${queryParams.toString()}`);
   }
-}
 
   /**
    * Update an identification with user-edited data
