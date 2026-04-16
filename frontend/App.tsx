@@ -48,6 +48,7 @@ function App(): React.JSX.Element {
   const [resetFlowStep, setResetFlowStep] = useState<'forgot' | 'reset' | null>(null);
   const [showPreviousResults, setShowPreviousResults] = useState(false);
   const [selectedCar, setSelectedCar] = useState<DetailCarData | null>(null);
+  const [identificationResult, setIdentificationResult] = useState<{car: DetailCarData; identificationId: number} | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('home');
   const [userCars, setUserCars] = useState<DetailCarData[]>([]);
   const [popularCars, setPopularCars] = useState<DetailCarData[]>([]);
@@ -265,22 +266,26 @@ function App(): React.JSX.Element {
   // Feature handlers
   const handleCameraPress = async () => {
     try {
-      const result = await captureAndIdentify(['make', 'model', 'description', 'car_type', 'year']);
+      const result = await captureAndIdentify(['make', 'model', 'description', 'car_type', 'year', 'body_type', 'features']);
       
-      if (result.is_car) {
+      if (result.is_car && result.car_details) {
         const details = result.car_details;
-        const message = `
-Car Identified! 🚗
-
-Make: ${details?.make || 'Unknown'}
-Model: ${details?.model || 'Unknown'}
-Type: ${details?.car_type || 'Unknown'}
-Year: ${details?.year || 'Unknown'}
-Confidence: ${result.confidence || 'Unknown'}
-
-${details?.description || ''}`;
-        
-        Alert.alert('Success!', message.trim());
+        const carData: DetailCarData = {
+          id: result.identification_id?.toString() || '0',
+          name: details.model
+            ? `${details.make || ''} ${details.model}`.trim()
+            : details.make || 'Unknown Car',
+          make: details.make,
+          model: details.model,
+          type: details.car_type,
+          year: details.year,
+          confidence: result.confidence,
+          identification_data: details,
+        };
+        setIdentificationResult({
+          car: carData,
+          identificationId: result.identification_id || 0,
+        });
       } else {
         Alert.alert(
           'No Car Detected',
@@ -290,6 +295,18 @@ ${details?.description || ''}`;
     } catch (error) {
       console.error('Camera identification failed:', error);
     }
+  };
+
+  const handleIdentificationModalClose = async (editedFields?: Partial<import('./src/services/carApi').CarDetails>) => {
+    if (editedFields && identificationResult?.identificationId) {
+      try {
+        await CarApiService.updateIdentification(identificationResult.identificationId, editedFields);
+      } catch (error) {
+        console.error('Failed to save edits:', error);
+      }
+    }
+    setIdentificationResult(null);
+    loadUserCars();
   };
 
   const handleLogout = async () => {
@@ -368,6 +385,13 @@ ${details?.description || ''}`;
         onClose={() => setSelectedCar(null)}
         isLiked={selectedCar ? likedCarIds.has(selectedCar.id) : false}
         onLikeToggle={handleLikeToggle}
+      />
+
+      <CarDetailModal
+        visible={identificationResult !== null}
+        car={identificationResult?.car ?? null}
+        onClose={handleIdentificationModalClose}
+        editable
       />
     </SafeAreaView>
   );

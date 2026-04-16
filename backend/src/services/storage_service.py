@@ -267,3 +267,53 @@ class CarStorageService:
             })
 
         return {'results': results, 'total_count': total_count}
+
+    def update_identification(
+        self,
+        identification_id: int,
+        user_id: UUID,
+        updates: Dict
+    ) -> Optional[Dict]:
+        """Update an identification record with user-edited data."""
+        record = self.db.query(CarIdentification)\
+                       .filter(CarIdentification.id == identification_id)\
+                       .first()
+
+        if not record:
+            return None
+
+        if record.user_id != user_id:
+            raise PermissionError("Not authorized to edit this identification")
+
+        # Editable top-level columns
+        column_map = {
+            'make': 'make',
+            'model': 'model',
+            'car_type': 'car_type',
+            'year': 'year_estimate',
+        }
+        for field, column in column_map.items():
+            if field in updates:
+                setattr(record, column, updates[field])
+
+        # Update the identification_data JSON blob
+        id_data = dict(record.identification_data) if record.identification_data else {}
+        json_fields = ['make', 'model', 'description', 'car_type', 'year', 'body_type', 'features']
+        for field in json_fields:
+            if field in updates:
+                id_data[field] = updates[field]
+        record.identification_data = id_data
+
+        record.user_modified = True
+
+        try:
+            self.db.commit()
+            self.db.refresh(record)
+            return {
+                'id': record.id,
+                'identification_data': record.identification_data,
+                'user_modified': record.user_modified,
+            }
+        except Exception as e:
+            self.db.rollback()
+            raise RuntimeError(f"Failed to update identification: {str(e)}")

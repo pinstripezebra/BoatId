@@ -457,6 +457,41 @@ async def get_car_identification(
     
     return result
 
+@router.put("/identifications/{identification_id}")
+async def update_car_identification(
+    identification_id: int,
+    updates: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update car identification data (user edit). Sets user_modified=True."""
+    allowed_fields = {'make', 'model', 'description', 'car_type', 'year', 'body_type', 'features'}
+    filtered = {k: v for k, v in updates.items() if k in allowed_fields}
+
+    if not filtered:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    storage_service = CarStorageService(
+        db_session=db,
+        s3_bucket=aws_bucket_name or "carid-images"
+    )
+
+    try:
+        result = storage_service.update_identification(
+            identification_id=identification_id,
+            user_id=current_user.id,
+            updates=filtered,
+        )
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this identification")
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Identification not found")
+
+    return result
+
 @router.get("/search")
 async def search_cars(
     q: str,

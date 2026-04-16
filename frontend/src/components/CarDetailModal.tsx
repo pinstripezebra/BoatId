@@ -8,6 +8,7 @@ import {
   StyleSheet,
   useColorScheme,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import type {CarCardData} from './CarCard';
 import type {CarDetails} from '../services/carApi';
@@ -22,18 +23,23 @@ export interface DetailCarData extends CarCardData {
 interface CarDetailModalProps {
   visible: boolean;
   car: DetailCarData | null;
-  onClose: () => void;
+  onClose: (editedFields?: Partial<CarDetails>) => void;
   isLiked?: boolean;
   onLikeToggle?: (id: string) => void;
+  editable?: boolean;
 }
 
-const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, isLiked, onLikeToggle}) => {
+const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, isLiked, onLikeToggle, editable}) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [imageError, setImageError] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editValues, setEditValues] = React.useState<Partial<CarDetails>>({});
 
-  // Reset error state when car changes
+  // Reset state when car changes
   React.useEffect(() => {
     setImageError(false);
+    setIsEditing(false);
+    setEditValues({});
   }, [car?.id]);
 
   if (!car) return null;
@@ -43,8 +49,71 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
   const subtextColor = isDarkMode ? '#aaaaaa' : '#666666';
   const dividerColor = isDarkMode ? '#333333' : '#e0e0e0';
   const chipBg = isDarkMode ? '#2a2a2a' : '#f0f0f0';
+  const inputBg = isDarkMode ? '#2a2a2a' : '#f5f5f5';
+  const inputBorder = isDarkMode ? '#444444' : '#dddddd';
 
   const idData = car.identification_data;
+
+  const getEditValue = (field: keyof CarDetails, fallback?: string) => {
+    if (isEditing && field in editValues) {
+      const val = editValues[field];
+      return Array.isArray(val) ? val.join(', ') : (val ?? '');
+    }
+    return fallback ?? '';
+  };
+
+  const setEditField = (field: keyof CarDetails, value: string) => {
+    setEditValues(prev => ({
+      ...prev,
+      [field]: field === 'features' ? value.split(',').map(s => s.trim()).filter(Boolean) : value,
+    }));
+  };
+
+  const startEditing = () => {
+    setEditValues({
+      make: car.make || idData?.make || '',
+      model: car.model || idData?.model || '',
+      car_type: car.type || idData?.car_type || '',
+      year: car.year || idData?.year || '',
+      body_type: idData?.body_type || '',
+      description: idData?.description || '',
+      features: idData?.features || [],
+    });
+    setIsEditing(true);
+  };
+
+  const hasChanges = () => {
+    if (!isEditing) return false;
+    const orig: Record<string, any> = {
+      make: car.make || idData?.make || '',
+      model: car.model || idData?.model || '',
+      car_type: car.type || idData?.car_type || '',
+      year: car.year || idData?.year || '',
+      body_type: idData?.body_type || '',
+      description: idData?.description || '',
+      features: idData?.features || [],
+    };
+    for (const key of Object.keys(editValues)) {
+      const edited = editValues[key as keyof CarDetails];
+      const original = orig[key];
+      if (Array.isArray(edited) && Array.isArray(original)) {
+        if (edited.join(',') !== original.join(',')) return true;
+      } else if (edited !== original) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const handleClose = () => {
+    if (isEditing && hasChanges()) {
+      onClose(editValues);
+    } else {
+      onClose();
+    }
+    setIsEditing(false);
+    setEditValues({});
+  };
 
   const confidenceColor = (level?: string) => {
     switch (level?.toLowerCase()) {
@@ -55,8 +124,28 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
     }
   };
 
+  const renderField = (label: string, field: keyof CarDetails, displayValue?: string) => {
+    const value = displayValue ?? (idData?.[field] as string | undefined) ?? '';
+    if (!isEditing && !value) return null;
+    return (
+      <View style={styles.detailRow}>
+        <Text style={[styles.label, {color: subtextColor}]}>{label}</Text>
+        {isEditing ? (
+          <TextInput
+            style={[styles.editInput, {color: textColor, backgroundColor: inputBg, borderColor: inputBorder}]}
+            value={getEditValue(field, value)}
+            onChangeText={(text) => setEditField(field, text)}
+            placeholderTextColor={subtextColor}
+          />
+        ) : (
+          <Text style={[styles.value, {color: textColor}]}>{value || 'Unknown'}</Text>
+        )}
+      </View>
+    );
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={() => handleClose()}>
       <View style={styles.overlay}>
         <View style={[styles.container, {backgroundColor: bgColor}]}>
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -99,66 +188,69 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
               {/* Core details */}
               <Text style={[styles.sectionTitle, {color: textColor}]}>Details</Text>
 
-              <View style={styles.detailRow}>
-                <Text style={[styles.label, {color: subtextColor}]}>Make</Text>
-                <Text style={[styles.value, {color: textColor}]}>{car.make || 'Unknown'}</Text>
-              </View>
-
-              {car.model && (
-                <View style={styles.detailRow}>
-                  <Text style={[styles.label, {color: subtextColor}]}>Model</Text>
-                  <Text style={[styles.value, {color: textColor}]}>{car.model}</Text>
-                </View>
-              )}
-
-              <View style={styles.detailRow}>
-                <Text style={[styles.label, {color: subtextColor}]}>Type</Text>
-                <Text style={[styles.value, {color: textColor}]}>{car.type || idData?.car_type || 'Unknown'}</Text>
-              </View>
-
-              {(car.year || idData?.year) && (
-                <View style={styles.detailRow}>
-                  <Text style={[styles.label, {color: subtextColor}]}>Year</Text>
-                  <Text style={[styles.value, {color: textColor}]}>{car.year || idData?.year}</Text>
-                </View>
-              )}
-
-              {idData?.body_type && (
-                <View style={styles.detailRow}>
-                  <Text style={[styles.label, {color: subtextColor}]}>Body Type</Text>
-                  <Text style={[styles.value, {color: textColor}]}>{idData.body_type}</Text>
-                </View>
-              )}
+              {renderField('Make', 'make', car.make || idData?.make)}
+              {renderField('Model', 'model', car.model || idData?.model)}
+              {renderField('Type', 'car_type', car.type || idData?.car_type)}
+              {renderField('Year', 'year', car.year || idData?.year)}
+              {renderField('Body Type', 'body_type', idData?.body_type)}
 
               {/* Description */}
-              {idData?.description && (
+              {(isEditing || idData?.description) && (
                 <>
                   <View style={[styles.divider, {backgroundColor: dividerColor}]} />
                   <Text style={[styles.sectionTitle, {color: textColor}]}>Description</Text>
-                  <Text style={[styles.description, {color: subtextColor}]}>{idData.description}</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={[styles.editInputMultiline, {color: textColor, backgroundColor: inputBg, borderColor: inputBorder}]}
+                      value={getEditValue('description', idData?.description)}
+                      onChangeText={(text) => setEditField('description', text)}
+                      multiline
+                      numberOfLines={3}
+                      placeholderTextColor={subtextColor}
+                    />
+                  ) : (
+                    <Text style={[styles.description, {color: subtextColor}]}>{idData?.description}</Text>
+                  )}
                 </>
               )}
 
               {/* Features */}
-              {idData?.features && idData.features.length > 0 && (
+              {(isEditing || (idData?.features && idData.features.length > 0)) && (
                 <>
                   <View style={[styles.divider, {backgroundColor: dividerColor}]} />
                   <Text style={[styles.sectionTitle, {color: textColor}]}>Features</Text>
-                  <View style={styles.chipContainer}>
-                    {(Array.isArray(idData.features) ? idData.features : String(idData.features).split(/[,\n]+/).map(s => s.trim()).filter(Boolean)).map((feature, idx) => (
-                      <View key={idx} style={[styles.chip, {backgroundColor: chipBg}]}>
-                        <Text style={[styles.chipText, {color: textColor}]}>{feature}</Text>
-                      </View>
-                    ))}
-                  </View>
+                  {isEditing ? (
+                    <TextInput
+                      style={[styles.editInput, {color: textColor, backgroundColor: inputBg, borderColor: inputBorder}]}
+                      value={getEditValue('features', idData?.features?.join(', '))}
+                      onChangeText={(text) => setEditField('features', text)}
+                      placeholder="Comma-separated features"
+                      placeholderTextColor={subtextColor}
+                    />
+                  ) : (
+                    <View style={styles.chipContainer}>
+                      {(Array.isArray(idData?.features) ? idData!.features : String(idData?.features ?? '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean)).map((feature, idx) => (
+                        <View key={idx} style={[styles.chip, {backgroundColor: chipBg}]}>
+                          <Text style={[styles.chipText, {color: textColor}]}>{feature}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </>
               )}
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            {editable && !isEditing && (
+              <TouchableOpacity style={styles.editButton} onPress={startEditing}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={[styles.closeButton, editable && !isEditing ? {flex: 1} : {flex: 1}]} onPress={handleClose}>
+              <Text style={styles.closeButtonText}>{isEditing ? 'Save & Close' : 'Close'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -263,7 +355,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   closeButton: {
-    margin: 16,
     paddingVertical: 14,
     borderRadius: 10,
     backgroundColor: '#2196f3',
@@ -273,6 +364,43 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    margin: 16,
+  },
+  editButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#ff9800',
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'right',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 140,
+  },
+  editInputMultiline: {
+    fontSize: 14,
+    lineHeight: 22,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    textAlignVertical: 'top',
   },
 });
 

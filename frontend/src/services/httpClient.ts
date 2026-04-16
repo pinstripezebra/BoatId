@@ -77,6 +77,15 @@ export class HttpClient {
     });
   }
 
+  static async put<T>(endpoint: string, body?: any): Promise<T> {
+    const options: RequestInit = {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    };
+    return this.makeRequest<T>(endpoint, options);
+  }
+
   static async delete<T>(endpoint: string): Promise<T> {
     return this.makeRequest<T>(endpoint, { method: 'DELETE' });
   }

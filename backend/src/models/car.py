@@ -22,6 +22,9 @@ class CarIdentification(Base):
     car_type = Column(String(50), index=True)
     year_estimate = Column(String(20), index=True)
     
+    # Track whether user edited the identification data
+    user_modified = Column(Boolean, default=False, nullable=False, server_default='false')
+    
     # Location data
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)

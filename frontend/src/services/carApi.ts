@@ -282,5 +282,16 @@ export class CarApiService {
   }
 }
 
+  /**
+   * Update an identification with user-edited data
+   */
+  static async updateIdentification(
+    id: number,
+    updates: Partial<CarDetails>
+  ): Promise<{ id: number; identification_data: CarDetails; user_modified: boolean }> {
+    return await HttpClient.put(`api/v1/cars/identifications/${id}`, updates);
+  }
+}
+
 // Export types and service
 export default CarApiService;
