@@ -1,5 +1,6 @@
 import React from 'react';
-import {View, Text, Image, TouchableOpacity, StyleSheet, useColorScheme, ImageSourcePropType} from 'react-native';
+import {View, Text, TouchableOpacity, StyleSheet, useColorScheme, ImageSourcePropType} from 'react-native';
+import CachedImage from './CachedImage';
 
 export interface CarCardData {
   id: string;
@@ -29,7 +30,7 @@ const CarCard: React.FC<CarCardProps> = ({id, name, type, make, image, onPress, 
       activeOpacity={0.8}>
       <View>
         {image ? (
-          <Image source={image} style={styles.image} resizeMode="cover" />
+          <CachedImage source={image} style={styles.image} resizeMode="cover" />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Text style={styles.placeholderEmoji}>�</Text>

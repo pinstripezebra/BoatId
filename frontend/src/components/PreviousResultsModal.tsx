@@ -5,11 +5,11 @@ import {
   Modal,
   StyleSheet,
   FlatList,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   useColorScheme,
 } from 'react-native';
+import CachedImage from './CachedImage';
 import { CarApiService, type CarIdentificationListResponse } from '../services';
 
 interface PreviousResultsModalProps {
@@ -81,7 +81,7 @@ const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({ visible, on
 
     return (
       <View style={[styles.resultCard, { backgroundColor: cardBg }]}>
-        <Image
+        <CachedImage
           source={{ uri: item.image_url }}
           style={styles.resultImage}
           resizeMode="cover"

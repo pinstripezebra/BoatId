@@ -8,12 +8,12 @@ import {
   ActivityIndicator,
   useColorScheme,
   FlatList,
-  Image,
   Dimensions,
   Modal,
   TextInput,
   Alert,
 } from 'react-native';
+import CachedImage from './CachedImage';
 import { AuthService } from '../services/authService';
 import { CarApiService } from '../services';
 import type { CarDetails } from '../services/carApi';
@@ -23,6 +23,7 @@ import type { DetailCarData } from './CarDetailModal';
 interface ProfileScreenProps {
   onLogout: () => void;
   onCarPress?: (car: DetailCarData) => void;
+  onShowAboutUs?: () => void;
 }
 
 interface GridCar {
@@ -40,7 +41,7 @@ const NUM_COLUMNS = 2;
 const screenWidth = Dimensions.get('window').width;
 const TILE_SIZE = (screenWidth - 40 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onShowAboutUs }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [posts, setPosts] = useState<GridCar[]>([]);
@@ -187,7 +188,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress }) =
       onPress={() => handleGridItemPress(item)}
       activeOpacity={0.7}>
       {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={styles.gridImage} resizeMode="cover" />
+        <CachedImage source={{ uri: item.image_url }} style={styles.gridImage} resizeMode="cover" />
       ) : (
         <View style={[styles.gridImage, styles.gridPlaceholder]}>
           <Text style={styles.placeholderEmoji}>🚗</Text>
@@ -247,17 +248,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress }) =
   );
 
   const renderFooter = () => {
-    if (isLoadingMore) {
-      return <ActivityIndicator size="small" color="#2196f3" style={styles.footerLoader} />;
-    }
-    if (hasMore && currentData.length > 0) {
-      return (
-        <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
-          <Text style={styles.loadMoreText}>Load More</Text>
-        </TouchableOpacity>
-      );
-    }
-    return null;
+    return (
+      <View>
+        {isLoadingMore ? (
+          <ActivityIndicator size="small" color="#2196f3" style={styles.footerLoader} />
+        ) : hasMore && currentData.length > 0 ? (
+          <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
+            <Text style={styles.loadMoreText}>Load More</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <View style={styles.bottomLinksRow}>
+          <TouchableOpacity onPress={() => onShowAboutUs?.()}>
+            <Text style={styles.bottomLinkText}>About Us</Text>
+          </TouchableOpacity>
+          <Text style={[styles.bottomLinkDivider, { color: subtextColor }]}>|</Text>
+          <TouchableOpacity onPress={() => setShowPrivacyPolicy(true)}>
+            <Text style={styles.bottomLinkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
   if (showPrivacyPolicy) {
@@ -285,6 +296,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress }) =
                   setShowPrivacyPolicy(true);
                 }}>
                 <Text style={[styles.settingsItemText, { color: textColor }]}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <View style={[styles.settingsDivider, { backgroundColor: isDarkMode ? '#444' : '#e0e0e0' }]} />
+              <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => {
+                  setShowSettingsMenu(false);
+                  onShowAboutUs?.();
+                }}>
+                <Text style={[styles.settingsItemText, { color: textColor }]}>About Us</Text>
               </TouchableOpacity>
               <View style={[styles.settingsDivider, { backgroundColor: isDarkMode ? '#444' : '#e0e0e0' }]} />
               <TouchableOpacity
@@ -511,6 +531,24 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '600',
+  },
+  bottomLinksRow: {
+    marginTop: 6,
+    marginBottom: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomLinkText: {
+    color: '#2196f3',
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  bottomLinkDivider: {
+    marginHorizontal: 10,
+    fontSize: 12,
   },
   profileCardHeader: {
     flexDirection: 'row',

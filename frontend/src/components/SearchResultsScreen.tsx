@@ -10,6 +10,7 @@ import {
   FlatList,
 } from 'react-native';
 import CarCard from './CarCard';
+import CachedImage from './CachedImage';
 import type { CarCardData } from './CarCard';
 import { CarApiService } from '../services';
 import type { SearchResult } from '../services/carApi';

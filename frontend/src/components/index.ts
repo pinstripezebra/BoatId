@@ -8,6 +8,7 @@ export {default as HorizontalCarList} from './HorizontalCarList';
 export {default as BottomNavBar} from './BottomNavBar';
 export {default as SearchBar} from './SearchBar';
 export {default as SearchResultsScreen} from './SearchResultsScreen';
+export {default as AboutUsScreen} from './AboutUsScreen';
 
 // Type exports
 export type {default as WelcomeCardProps} from './WelcomeCard';

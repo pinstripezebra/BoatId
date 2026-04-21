@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { AuthService } from '../services/authService';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
+import AboutUsScreen from './AboutUsScreen';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -30,6 +31,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showAboutUs, setShowAboutUs] = useState(false);
 
   const passwordRequirements = [
     { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -194,11 +196,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
                 : 'Already have an account? Sign In'}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.footerLinksRow}>
+            <Text style={[styles.footerLink, { color: '#2196f3' }]} onPress={() => setShowAboutUs(true)}>
+              About Us
+            </Text>
+            <Text style={[styles.footerDivider, { color: subtextColor }]}>|</Text>
+            <Text style={[styles.footerLink, { color: '#2196f3' }]} onPress={() => setShowPrivacyPolicy(true)}>
+              Privacy Policy
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
       <Modal visible={showPrivacyPolicy} animationType="slide">
         <PrivacyPolicyScreen onClose={() => setShowPrivacyPolicy(false)} />
+      </Modal>
+
+      <Modal visible={showAboutUs} animationType="slide">
+        <AboutUsScreen onClose={() => setShowAboutUs(false)} />
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -294,6 +310,20 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
+  },
+  footerLinksRow: {
+    marginTop: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  footerLink: {
+    fontSize: 13,
+    textDecorationLine: 'underline',
+  },
+  footerDivider: {
+    marginHorizontal: 10,
+    fontSize: 12,
   },
 });
 

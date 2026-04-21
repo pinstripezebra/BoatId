@@ -34,9 +34,12 @@ import type { TabName } from './src/components/BottomNavBar';
 import ProfileScreen from './src/components/ProfileScreen';
 import MapScreen from './src/components/MapScreen';
 import SearchResultsScreen from './src/components/SearchResultsScreen';
+import AboutUsScreen from './src/components/AboutUsScreen';
+import PrivacyPolicyScreen from './src/components/PrivacyPolicyScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { CarApiService } from './src/services';
+import { getCachedOrFetch } from './src/utils/queryCache';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -54,6 +57,8 @@ function App(): React.JSX.Element {
   const [popularCars, setPopularCars] = useState<DetailCarData[]>([]);
   const [nearbyCars, setNearbyCars] = useState<DetailCarData[]>([]);
   const [likedCarIds, setLikedCarIds] = useState<Set<string>>(new Set());
+  const [showAboutUs, setShowAboutUs] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -188,12 +193,30 @@ function App(): React.JSX.Element {
 
   const isCarLiked = useCallback((id: string) => likedCarIds.has(id), [likedCarIds]);
 
+  // Prefetch and cache after login
   useEffect(() => {
     if (isLoggedIn) {
       loadUserCars();
       loadPopularCars();
       loadNearbyCars();
       loadLikedCarIds();
+
+      // Prefetch and cache popular, nearby, and history
+      getCachedOrFetch(
+        'popularCars',
+        () => CarApiService.getPopularCars(5),
+        { ttl: 5 * 60 * 1000 }
+      );
+      getCachedOrFetch(
+        'nearbyCars',
+        () => CarApiService.getNearbyCars(39.8, -98.6, 5000),
+        { ttl: 5 * 60 * 1000 }
+      );
+      getCachedOrFetch(
+        'userHistory',
+        () => CarApiService.getIdentifications(1, 10, { isCar: true }),
+        { ttl: 60 * 1000 }
+      );
     }
   }, [isLoggedIn, loadUserCars, loadPopularCars, loadLikedCarIds]);
 
@@ -321,8 +344,16 @@ function App(): React.JSX.Element {
         backgroundColor={backgroundStyle.backgroundColor}
       />
 
-      {activeTab === 'profile' ? (
-        <ProfileScreen onLogout={handleLogout} onCarPress={(car) => setSelectedCar(car)} />
+      {showAboutUs ? (
+        <AboutUsScreen onClose={() => setShowAboutUs(false)} />
+      ) : showPrivacyPolicy ? (
+        <PrivacyPolicyScreen onClose={() => setShowPrivacyPolicy(false)} />
+      ) : activeTab === 'profile' ? (
+        <ProfileScreen
+          onLogout={handleLogout}
+          onCarPress={(car) => setSelectedCar(car)}
+          onShowAboutUs={() => setShowAboutUs(true)}
+        />
       ) : activeTab === 'map' ? (
         <MapScreen onCarPress={setSelectedCar} />
       ) : activeTab === 'search' ? (
@@ -362,17 +393,29 @@ function App(): React.JSX.Element {
           {userCars.length > 0 && (
             <HorizontalCarList title="Your Cars" cars={userCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
           )}
+
+          <View style={styles.homeFooterLinksRow}>
+            <TouchableOpacity onPress={() => setShowAboutUs(true)}>
+              <Text style={styles.homeFooterLink}>About Us</Text>
+            </TouchableOpacity>
+            <Text style={[styles.homeFooterDivider, textStyle]}>|</Text>
+            <TouchableOpacity onPress={() => setShowPrivacyPolicy(true)}>
+              <Text style={styles.homeFooterLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       )}
 
-      <BottomNavBar
-        onCameraPress={handleCameraPress}
-        isProcessing={isProcessing}
-        activeTab={activeTab}
-        onHomePress={() => setActiveTab('home')}
-        onMapPress={() => setActiveTab('map')}
-        onProfilePress={() => setActiveTab('profile')}
-      />
+      {!showAboutUs && !showPrivacyPolicy && (
+        <BottomNavBar
+          onCameraPress={handleCameraPress}
+          isProcessing={isProcessing}
+          activeTab={activeTab}
+          onHomePress={() => setActiveTab('home')}
+          onMapPress={() => setActiveTab('map')}
+          onProfilePress={() => setActiveTab('profile')}
+        />
+      )}
 
       <PreviousResultsModal
         visible={showPreviousResults}
@@ -428,6 +471,24 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     opacity: 0.6,
+  },
+  homeFooterLinksRow: {
+    marginTop: 12,
+    marginBottom: 6,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  homeFooterLink: {
+    color: '#2196f3',
+    textDecorationLine: 'underline',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  homeFooterDivider: {
+    marginHorizontal: 10,
+    opacity: 0.55,
   },
   centered: {
     justifyContent: 'center',
