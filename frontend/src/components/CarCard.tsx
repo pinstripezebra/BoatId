@@ -29,8 +29,8 @@ const CarCard: React.FC<CarCardProps> = ({id, name, type, make, image, onPress, 
       onPress={onPress}
       activeOpacity={0.8}>
       <View>
-        {image ? (
-          <CachedImage source={image} style={styles.image} resizeMode="cover" />
+        {image && typeof image === 'object' && 'uri' in image && image.uri ? (
+          <CachedImage source={{ uri: image.uri }} style={styles.image} resizeMode="cover" />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Text style={styles.placeholderEmoji}>�</Text>
