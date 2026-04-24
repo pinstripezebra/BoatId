@@ -88,7 +88,7 @@ async def identify_car_from_image(
         
         # Run car identification and license plate blurring in parallel
         blur_service = LicensePlateBlurService(aws_region=os.getenv("AWS_REGION", "us-west-2"))
-        result, blurred_image_data = await asyncio.gather(
+        result, blur_result = await asyncio.gather(
             identifier.identify_car(image_data, fields),
             blur_service.blur_license_plates(image_data, image.content_type or "image/jpeg"),
         )
@@ -96,16 +96,13 @@ async def identify_car_from_image(
         # Store results if requested — blurred image is sent to S3 (license plates redacted)
         identification_id = None
         if store_results:
-            # If car is detected, redact license plates before storing/uploading
-            if result.is_car:
-                image_data = blur_license_plates(image_data)
             storage_service = CarStorageService(
                 db_session=db,
                 s3_bucket=aws_bucket_name or "carid-images"
             )
             identification_id = await storage_service.store_identification_result(
                 image_filename=image.filename or "car_image.jpg",
-                image_data=blurred_image_data,
+                image_data=blur_result.image_data,
                 result=result,
                 user_id=current_user.id if current_user else None,
                 latitude=latitude,

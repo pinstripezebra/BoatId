@@ -46,6 +46,15 @@
                 "logs:DescribeLogStreams"
             ],
             "Resource": "*"
+        },
+        {
+            "Sid": "RekognitionLicensePlate",
+            "Effect": "Allow",
+            "Action": [
+                "rekognition:DetectLabels",
+                "rekognition:DetectText"
+            ],
+            "Resource": "*"
         }
     ]
 }
