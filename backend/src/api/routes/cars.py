@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import Optional, List, Dict, Any
+import asyncio
 import json
 import os
 import boto3
@@ -14,6 +15,7 @@ from models.user import User
 from models.car_popularity import CarPopularity
 from models.liked_car import LikedCar
 from services.storage_service import CarStorageService
+from services.license_plate_service import LicensePlateBlurService
 from utils.database import get_db
 from utils.rate_limit import limiter
 from api.routes.users import get_current_user, get_current_user_optional
@@ -84,10 +86,14 @@ async def identify_car_from_image(
         if requested_fields:
             fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
         
-        # Identify car using Anthropic
-        result = await identifier.identify_car(image_data, fields)
-        
-        # Store results if requested
+        # Run car identification and license plate blurring in parallel
+        blur_service = LicensePlateBlurService(aws_region=os.getenv("AWS_REGION", "us-west-2"))
+        result, blurred_image_data = await asyncio.gather(
+            identifier.identify_car(image_data, fields),
+            blur_service.blur_license_plates(image_data, image.content_type or "image/jpeg"),
+        )
+
+        # Store results if requested — blurred image is sent to S3 (license plates redacted)
         identification_id = None
         if store_results:
             # If car is detected, redact license plates before storing/uploading
@@ -99,7 +105,7 @@ async def identify_car_from_image(
             )
             identification_id = await storage_service.store_identification_result(
                 image_filename=image.filename or "car_image.jpg",
-                image_data=image_data,
+                image_data=blurred_image_data,
                 result=result,
                 user_id=current_user.id if current_user else None,
                 latitude=latitude,
