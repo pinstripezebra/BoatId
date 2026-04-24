@@ -36,6 +36,8 @@ import MapScreen from './src/components/MapScreen';
 import SearchResultsScreen from './src/components/SearchResultsScreen';
 import AboutUsScreen from './src/components/AboutUsScreen';
 import PrivacyPolicyScreen from './src/components/PrivacyPolicyScreen';
+import CategoryScreen from './src/components/CategoryScreen';
+import type { CategoryType } from './src/components/CategoryScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { CarApiService } from './src/services';
@@ -59,6 +61,7 @@ function App(): React.JSX.Element {
   const [likedCarIds, setLikedCarIds] = useState<Set<string>>(new Set());
   const [showAboutUs, setShowAboutUs] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [categoryScreen, setCategoryScreen] = useState<CategoryType | null>(null);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -117,7 +120,7 @@ function App(): React.JSX.Element {
 
   const loadPopularCars = useCallback(async () => {
     try {
-      const data = await CarApiService.getPopularCars(5);
+      const data = await CarApiService.getPopularCars(1, 5);
       const mapped: DetailCarData[] = data.results.map(item => ({
         id: item.id.toString(),
         name: item.model
@@ -363,6 +366,15 @@ function App(): React.JSX.Element {
           isLiked={isCarLiked}
           onLikeToggle={handleLikeToggle}
         />
+      ) : categoryScreen !== null ? (
+        <CategoryScreen
+          title={categoryScreen === 'popular' ? 'Popular Cars' : 'Cars Near You'}
+          category={categoryScreen}
+          onBack={() => setCategoryScreen(null)}
+          onCarPress={(car) => setSelectedCar(car)}
+          isLiked={isCarLiked}
+          onLikeToggle={handleLikeToggle}
+        />
       ) : (
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -387,11 +399,35 @@ function App(): React.JSX.Element {
 
           <SearchBar onPress={() => setActiveTab('search')} />
 
-          <HorizontalCarList title="Popular Cars" cars={popularCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} maxItems={5} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
-          <HorizontalCarList title="Cars Near You" cars={nearbyCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
+          <HorizontalCarList
+            title="Popular Cars"
+            cars={popularCars}
+            onCarPress={(car) => setSelectedCar(car as DetailCarData)}
+            maxItems={5}
+            isLiked={isCarLiked}
+            onLikeToggle={handleLikeToggle}
+            onHeaderPress={() => setCategoryScreen('popular')}
+            onViewMorePress={() => setCategoryScreen('popular')}
+          />
+          <HorizontalCarList
+            title="Cars Near You"
+            cars={nearbyCars}
+            onCarPress={(car) => setSelectedCar(car as DetailCarData)}
+            isLiked={isCarLiked}
+            onLikeToggle={handleLikeToggle}
+            onHeaderPress={() => setCategoryScreen('nearby')}
+            onViewMorePress={() => setCategoryScreen('nearby')}
+          />
 
           {userCars.length > 0 && (
-            <HorizontalCarList title="Your Cars" cars={userCars} onCarPress={(car) => setSelectedCar(car as DetailCarData)} isLiked={isCarLiked} onLikeToggle={handleLikeToggle} />
+            <HorizontalCarList
+              title="Your Cars"
+              cars={userCars}
+              onCarPress={(car) => setSelectedCar(car as DetailCarData)}
+              isLiked={isCarLiked}
+              onLikeToggle={handleLikeToggle}
+              onHeaderPress={() => setActiveTab('profile')}
+            />
           )}
 
           <View style={styles.homeFooterLinksRow}>

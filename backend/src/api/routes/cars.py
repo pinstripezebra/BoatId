@@ -274,16 +274,25 @@ async def get_car_identifications(
 @router.get("/popular")
 async def get_popular_cars(
     request: Request,
-    limit: int = Query(5, ge=1, le=50),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=50, description="Items per page"),
     db: Session = Depends(get_db),
 ):
     """Get the most popular cars sorted by number of likes."""
+    offset = (page - 1) * per_page
+    total = (
+        db.query(CarIdentification)
+        .join(CarPopularity, CarPopularity.id == CarIdentification.id)
+        .filter(CarIdentification.is_car == True)
+        .count()
+    )
     results = (
         db.query(CarIdentification, CarPopularity.likes)
         .join(CarPopularity, CarPopularity.id == CarIdentification.id)
         .filter(CarIdentification.is_car == True)
         .order_by(CarPopularity.likes.desc())
-        .limit(limit)
+        .offset(offset)
+        .limit(per_page)
         .all()
     )
 
@@ -316,7 +325,14 @@ async def get_popular_cars(
             'identification_data': car.identification_data,
         })
 
-    return {"results": cars, "count": len(cars)}
+    return {
+        "results": cars,
+        "count": len(cars),
+        "page": page,
+        "per_page": per_page,
+        "total_count": total,
+        "total_pages": max(1, (total + per_page - 1) // per_page),
+    }
 
 
 @router.get("/liked")
@@ -605,6 +621,8 @@ async def get_nearby_cars(
     latitude: float = Query(..., description="Center latitude"),
     longitude: float = Query(..., description="Center longitude"),
     radius_km: float = Query(50, description="Search radius in kilometers"),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=50, description="Items per page"),
     db: Session = Depends(get_db)
 ):
     """Get car identifications within a given radius of a location."""
@@ -613,8 +631,8 @@ async def get_nearby_cars(
     import math
     lat_delta = radius_km / 111.0
     lng_delta = radius_km / (111.0 * max(abs(math.cos(math.radians(latitude))), 0.01))
-    
-    results = db.query(CarIdentification).filter(
+
+    base_query = db.query(CarIdentification).filter(
         and_(
             CarIdentification.is_car == True,
             CarIdentification.latitude.isnot(None),
@@ -622,7 +640,10 @@ async def get_nearby_cars(
             CarIdentification.latitude.between(latitude - lat_delta, latitude + lat_delta),
             CarIdentification.longitude.between(longitude - lng_delta, longitude + lng_delta),
         )
-    ).order_by(CarIdentification.created_at.desc()).limit(200).all()
+    )
+    total = base_query.count()
+    offset = (page - 1) * per_page
+    results = base_query.order_by(CarIdentification.created_at.desc()).offset(offset).limit(per_page).all()
     
     storage_service = CarStorageService(
         db_session=db,
@@ -658,6 +679,10 @@ async def get_nearby_cars(
     return {
         "results": cars,
         "count": len(cars),
+        "page": page,
+        "per_page": per_page,
+        "total_count": total,
+        "total_pages": max(1, (total + per_page - 1) // per_page),
         "center": {"latitude": latitude, "longitude": longitude},
         "radius_km": radius_km
     }

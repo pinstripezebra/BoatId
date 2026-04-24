@@ -9,6 +9,8 @@ export {default as BottomNavBar} from './BottomNavBar';
 export {default as SearchBar} from './SearchBar';
 export {default as SearchResultsScreen} from './SearchResultsScreen';
 export {default as AboutUsScreen} from './AboutUsScreen';
+export {default as CategoryScreen} from './CategoryScreen';
+export type {CategoryType} from './CategoryScreen';
 
 // Type exports
 export type {default as WelcomeCardProps} from './WelcomeCard';

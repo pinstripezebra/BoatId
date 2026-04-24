@@ -90,6 +90,10 @@ export interface NearbyCar {
 export interface NearbyCarsResponse {
   results: NearbyCar[];
   count: number;
+  page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
   center: { latitude: number; longitude: number };
   radius_km: number;
 }
@@ -109,6 +113,10 @@ export interface PopularCar {
 export interface PopularCarsResponse {
   results: PopularCar[];
   count: number;
+  page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
 }
 
 export interface LikedCarIdsResponse {
@@ -232,12 +240,16 @@ export class CarApiService {
   static async getNearbyCars(
     latitude: number,
     longitude: number,
-    radiusKm: number = 50
+    radiusKm: number = 50,
+    page: number = 1,
+    perPage: number = 20
   ): Promise<NearbyCarsResponse> {
     const queryParams = new URLSearchParams({
       latitude: latitude.toString(),
       longitude: longitude.toString(),
       radius_km: radiusKm.toString(),
+      page: page.toString(),
+      per_page: perPage.toString(),
     });
     return await HttpClient.get<NearbyCarsResponse>(`api/v1/cars/nearby?${queryParams.toString()}`);
   }
@@ -259,8 +271,12 @@ export class CarApiService {
   /**
    * Get popular cars sorted by likes
    */
-  static async getPopularCars(limit: number = 5): Promise<PopularCarsResponse> {
-    return await HttpClient.get<PopularCarsResponse>(`api/v1/cars/popular?limit=${limit}`);
+  static async getPopularCars(page: number = 1, perPage: number = 20): Promise<PopularCarsResponse> {
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    });
+    return await HttpClient.get<PopularCarsResponse>(`api/v1/cars/popular?${queryParams.toString()}`);
   }
 
   /**
