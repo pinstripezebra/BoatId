@@ -21,103 +21,120 @@ function simpleHash(str: string) {
 const CACHE_PREFIX = '@CarId:imageCache:';
 const memoryCache: { [uri: string]: string } = {};
 
-
 function getCacheKey(uri: string) {
   return CACHE_PREFIX + encodeURIComponent(uri);
 }
 
 function getLocalFilePath(uri: string) {
-  // Use a short hash for filename to avoid long/invalid names
   const filename = simpleHash(uri);
   return `${RNFS.CachesDirectoryPath}/carid-cache-${filename}`;
 }
 
-
-
-
 export const CachedImage: React.FC<ImageProps> = ({ source, ...props }) => {
-  // Only cache remote images with a valid uri
-  const isRemoteUri = source && typeof source === 'object' && 'uri' in source && typeof source.uri === 'string' && source.uri.startsWith('http');
-  const [uri, setUri] = useState<string | undefined>(isRemoteUri ? source.uri : undefined);
+  const isRemoteUri =
+    source &&
+    typeof source === 'object' &&
+    'uri' in source &&
+    typeof source.uri === 'string' &&
+    source.uri.startsWith('http');
+
+  // Stable string URI — avoids effect re-running on every parent re-render
+  // that creates a new source object with the same URI.
+  const imgUri = isRemoteUri ? (source as { uri: string }).uri : undefined;
+
+  // Initialize synchronously from memory cache so warm hits never cause a
+  // state transition (and therefore never trigger a second image load).
+  const [uri, setUri] = useState<string | undefined>(() =>
+    imgUri ? memoryCache[imgUri] : undefined,
+  );
 
   useEffect(() => {
-    let isMounted = true;
-    if (!isRemoteUri) {
+    if (!imgUri) {
       setUri(undefined);
       return;
     }
-    const imgUri = (source as { uri: string }).uri;
+
+    // Memory cache already set the initial state — nothing to do.
+    if (memoryCache[imgUri]) {
+      if (uri !== memoryCache[imgUri]) setUri(memoryCache[imgUri]);
+      return;
+    }
+
+    let isMounted = true;
     const cacheKey = getCacheKey(imgUri);
     const localFilePath = getLocalFilePath(imgUri);
+    // Capture as narrowed string so closures below see it as non-optional
+    const uri_ = imgUri;
 
     async function load() {
-      // Check in-memory cache first
-      if (memoryCache[imgUri]) {
-        console.log('[CachedImage] Using in-memory cache for', imgUri, '->', memoryCache[imgUri]);
-        setUri(memoryCache[imgUri]);
-        return;
-      }
-      // Check AsyncStorage for local file path and timestamp (TTL)
+      // Check disk cache
       const cacheEntryRaw = await AsyncStorage.getItem(cacheKey);
-      let cacheEntry: { path: string, timestamp: number } | null = null;
+      let cacheEntry: { path: string; timestamp: number } | null = null;
       if (cacheEntryRaw) {
         try {
           cacheEntry = JSON.parse(cacheEntryRaw);
-        } catch (e) {
-          // fallback for old format (just path string)
+        } catch {
           cacheEntry = { path: cacheEntryRaw, timestamp: 0 };
         }
       }
+
       const now = Date.now();
       const oneHour = 60 * 60 * 1000;
       if (
-        cacheEntry &&
-        cacheEntry.path &&
+        cacheEntry?.path &&
+        cacheEntry.timestamp &&
+        now - cacheEntry.timestamp < oneHour &&
         (await RNFS.exists(cacheEntry.path.replace('file://', '')))
-        && (cacheEntry.timestamp && now - cacheEntry.timestamp < oneHour)
       ) {
-        const fileUri = cacheEntry.path.startsWith('file://') ? cacheEntry.path : 'file://' + cacheEntry.path;
-        console.log('[CachedImage] Using disk cache for', imgUri, '->', fileUri);
-        memoryCache[imgUri] = fileUri;
+        const fileUri = cacheEntry.path.startsWith('file://')
+          ? cacheEntry.path
+          : 'file://' + cacheEntry.path;
+        memoryCache[uri_] = fileUri;
         if (isMounted) setUri(fileUri);
         return;
       }
-      // Download image to local file system
+
+      // Cache miss — show the remote URL immediately (single render).
+      // The Image component is already rendering with imgUri via the fallback
+      // below, so this setUri call results in no URI change and no reload.
+      if (isMounted) setUri(uri_);
+
+      // Download to disk in the background. Do NOT call setUri after the
+      // download — the image is already displaying correctly from the remote
+      // URL. The cached local file will be used on the next mount.
       try {
-        const downloadResult = await RNFS.downloadFile({
-          fromUrl: imgUri,
+        const result = await RNFS.downloadFile({
+          fromUrl: uri_,
           toFile: localFilePath,
         }).promise;
-        if (downloadResult.statusCode === 200) {
+        if (result.statusCode === 200) {
           const fileUri = 'file://' + localFilePath;
-          console.log('[CachedImage] Downloaded and cached', imgUri, '->', fileUri);
-          memoryCache[imgUri] = fileUri;
-          // Store both path and timestamp for TTL
-          await AsyncStorage.setItem(cacheKey, JSON.stringify({ path: fileUri, timestamp: Date.now() }));
-          if (isMounted) setUri(fileUri);
+          memoryCache[uri_] = fileUri;
+          await AsyncStorage.setItem(
+            cacheKey,
+            JSON.stringify({ path: fileUri, timestamp: Date.now() }),
+          );
         } else {
-          console.log('[CachedImage] Download failed, using remote URI for', imgUri);
-          memoryCache[imgUri] = imgUri;
-          if (isMounted) setUri(imgUri);
+          memoryCache[uri_] = uri_;
         }
       } catch (e) {
-        console.log('[CachedImage] Error downloading', imgUri, e);
-        memoryCache[imgUri] = imgUri;
-        if (isMounted) setUri(imgUri);
+        memoryCache[uri_] = uri_;
       }
     }
+
     load();
     return () => {
       isMounted = false;
     };
-  }, [source]);
+  }, [imgUri]); // Depend on the URI string, not the source object reference
 
-  if (uri) {
-    console.log('[CachedImage] Rendering image with URI:', uri);
-    return <Image {...props} source={{ uri }} />;
+  if (!isRemoteUri) {
+    return <Image {...props} source={source} />;
   }
-  // For non-remote or invalid images, fallback to default rendering
-  return <Image {...props} source={source} />;
+
+  // `uri ?? imgUri` — while the async cache check is running, fall back to
+  // the remote URL so the image starts loading immediately with no blank flash.
+  return <Image {...props} source={{ uri: uri ?? imgUri }} />;
 };
 
 export default CachedImage;
