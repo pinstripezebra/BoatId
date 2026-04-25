@@ -124,8 +124,13 @@ class AnthropicCarIdentifier:
                 ]
             )
             
-            # Parse response
-            result_text = response.content[0].text
+            # Parse response - strip markdown code fences if present
+            result_text = response.content[0].text.strip()
+            if result_text.startswith("```"):
+                result_text = result_text.split("```", 2)[1]
+                if result_text.startswith("json"):
+                    result_text = result_text[4:]
+                result_text = result_text.strip()
             result_json = json.loads(result_text)
             
             # Convert to structured result
