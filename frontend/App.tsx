@@ -307,6 +307,7 @@ function App(): React.JSX.Element {
           type: details.car_type,
           year: details.year,
           confidence: result.confidence,
+          image: result.image_url ? { uri: result.image_url } : undefined,
           identification_data: details,
         };
         setIdentificationResult({

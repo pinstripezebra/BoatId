@@ -136,8 +136,9 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
             setIsDeleting(true);
             try {
               await onDelete!(car!.id);
-            } catch {
-              Alert.alert('Error', 'Failed to delete image. Please try again.');
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : 'Unknown error';
+              Alert.alert('Error', `Failed to delete image: ${msg}`);
             } finally {
               setIsDeleting(false);
             }

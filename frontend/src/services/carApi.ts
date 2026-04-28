@@ -20,6 +20,7 @@ export interface CarDetails {
 export interface CarIdentificationResponse {
   success: boolean;
   identification_id?: number;
+  image_url?: string;
   filename: string;
   is_car: boolean;
   car_details?: CarDetails;

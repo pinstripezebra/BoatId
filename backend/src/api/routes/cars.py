@@ -107,6 +107,7 @@ async def identify_car_from_image(
 
         # Store results if requested and image contains a car — blurred image is sent to S3 (license plates redacted)
         identification_id = None
+        image_url = None
         if store_results and result.is_car:
             storage_service = CarStorageService(
                 db_session=db,
@@ -120,6 +121,19 @@ async def identify_car_from_image(
                 latitude=latitude,
                 longitude=longitude
             )
+            # Generate presigned URL for the stored image so the client can display it immediately
+            if identification_id:
+                db_car = db.query(CarIdentification).filter(CarIdentification.id == identification_id).first()
+                if db_car and db_car.s3_image_key:
+                    try:
+                        image_url = s3_client.generate_presigned_url(
+                            'get_object',
+                            Params={'Bucket': aws_bucket_name or 'carid-images', 'Key': db_car.s3_image_key},
+                            ExpiresIn=3600,
+                        )
+                    except Exception:
+                        base_url = str(request.base_url).rstrip('/')
+                        image_url = f"{base_url}/api/v1/cars/identifications/{identification_id}/image"
         
         # Build response
         response_data = {
