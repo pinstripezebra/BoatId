@@ -81,21 +81,33 @@ async def identify_car_from_image(
         # Read image data
         image_data = await image.read()
         
-        # Parse requested fields
+        # Parse requested fields - supports both JSON array and comma-separated string
         fields = []
         if requested_fields:
-            fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
+            try:
+                parsed = json.loads(requested_fields)
+                if isinstance(parsed, list):
+                    fields = [str(f).strip() for f in parsed if str(f).strip()]
+                else:
+                    fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
+            except (json.JSONDecodeError, TypeError):
+                fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
         
-        # Run car identification and license plate blurring in parallel
+        # Stage 1: Detect car make from badge/logo
+        make_result = await identifier.find_make(image_data)
+        make_hint = make_result.get("make")
+        make_confidence = make_result.get("confidence")
+
+        # Stage 2 & 3 in parallel: identify car (with make hint) and blur license plates
         blur_service = LicensePlateBlurService(aws_region=os.getenv("AWS_REGION", "us-west-2"))
         result, blur_result = await asyncio.gather(
-            identifier.identify_car(image_data, fields),
+            identifier.identify_car(image_data, fields, make_hint, make_confidence),
             blur_service.blur_license_plates(image_data, image.content_type or "image/jpeg"),
         )
 
-        # Store results if requested — blurred image is sent to S3 (license plates redacted)
+        # Store results if requested and image contains a car — blurred image is sent to S3 (license plates redacted)
         identification_id = None
-        if store_results:
+        if store_results and result.is_car:
             storage_service = CarStorageService(
                 db_session=db,
                 s3_bucket=aws_bucket_name or "carid-images"
@@ -129,7 +141,10 @@ async def identify_car_from_image(
                     # Only include if no specific fields requested or field was requested
                     if not fields or field_name in fields:
                         car_data[field_name] = value
-            
+
+            if result.make_source:
+                car_data["make_source"] = result.make_source
+
             response_data.update({
                 "car_details": car_data,
                 "confidence": result.confidence
