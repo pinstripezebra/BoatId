@@ -530,6 +530,31 @@ async def update_car_identification(
 
     return result
 
+@router.delete("/identifications/{identification_id}", status_code=204)
+async def delete_car_identification(
+    identification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a car identification and its associated S3 image. Only the owner may delete."""
+    car = db.query(CarIdentification).filter(CarIdentification.id == identification_id).first()
+
+    if not car:
+        raise HTTPException(status_code=404, detail="Identification not found")
+
+    if car.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this identification")
+
+    # Delete image from S3 if present
+    if car.s3_image_key:
+        try:
+            s3_client.delete_object(Bucket=aws_bucket_name or "carid-images", Key=car.s3_image_key)
+        except Exception as e:
+            print(f"Warning: failed to delete S3 object {car.s3_image_key}: {e}")
+
+    db.delete(car)
+    db.commit()
+
 @router.get("/search")
 async def search_cars(
     q: str,

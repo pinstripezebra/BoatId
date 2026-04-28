@@ -62,6 +62,7 @@ function App(): React.JSX.Element {
   const [showAboutUs, setShowAboutUs] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [categoryScreen, setCategoryScreen] = useState<CategoryType | null>(null);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -340,6 +341,13 @@ function App(): React.JSX.Element {
     setIsLoggedIn(false);
   };
 
+  const handleDeleteSelectedCar = async (carId: string) => {
+    await CarApiService.deleteIdentification(parseInt(carId, 10));
+    setSelectedCar(null);
+    setProfileRefreshKey(k => k + 1);
+    loadUserCars();
+  };
+
   return (
     <SafeAreaView style={backgroundStyle}>
       <StatusBar
@@ -356,6 +364,7 @@ function App(): React.JSX.Element {
           onLogout={handleLogout}
           onCarPress={(car) => setSelectedCar(car)}
           onShowAboutUs={() => setShowAboutUs(true)}
+          refreshKey={profileRefreshKey}
         />
       ) : activeTab === 'map' ? (
         <MapScreen onCarPress={setSelectedCar} />
@@ -464,6 +473,7 @@ function App(): React.JSX.Element {
         onClose={() => setSelectedCar(null)}
         isLiked={selectedCar ? likedCarIds.has(selectedCar.id) : false}
         onLikeToggle={handleLikeToggle}
+        onDelete={handleDeleteSelectedCar}
       />
 
       <CarDetailModal

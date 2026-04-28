@@ -306,6 +306,13 @@ export class CarApiService {
   ): Promise<{ id: number; identification_data: CarDetails; user_modified: boolean }> {
     return await HttpClient.put(`api/v1/cars/identifications/${id}`, updates);
   }
+
+  /**
+   * Delete a car identification and its associated S3 image
+   */
+  static async deleteIdentification(id: number): Promise<void> {
+    await HttpClient.delete(`api/v1/cars/identifications/${id}`);
+  }
 }
 
 // Export types and service

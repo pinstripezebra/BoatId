@@ -9,6 +9,8 @@ import {
   useColorScheme,
   ScrollView,
   TextInput,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import type {CarCardData} from './CarCard';
 import type {CarDetails} from '../services/carApi';
@@ -27,19 +29,24 @@ interface CarDetailModalProps {
   isLiked?: boolean;
   onLikeToggle?: (id: string) => void;
   editable?: boolean;
+  onDelete?: (carId: string) => Promise<void>;
 }
 
-const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, isLiked, onLikeToggle, editable}) => {
+const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, isLiked, onLikeToggle, editable, onDelete}) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [imageError, setImageError] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editValues, setEditValues] = React.useState<Partial<CarDetails>>({});
+  const [showMenu, setShowMenu] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   // Reset state when car changes
   React.useEffect(() => {
     setImageError(false);
     setIsEditing(false);
     setEditValues({});
+    setShowMenu(false);
+    setIsDeleting(false);
   }, [car?.id]);
 
   if (!car) return null;
@@ -115,6 +122,31 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
     setEditValues({});
   };
 
+  const handleDeletePress = () => {
+    setShowMenu(false);
+    Alert.alert(
+      'Delete Image',
+      'Are you sure you want to delete this image? This cannot be undone.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await onDelete!(car!.id);
+            } catch {
+              Alert.alert('Error', 'Failed to delete image. Please try again.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const confidenceColor = (level?: string) => {
     switch (level?.toLowerCase()) {
       case 'high': return '#4caf50';
@@ -172,7 +204,27 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
                     <Text style={styles.likeIcon}>{isLiked ? '♥' : '♡'}</Text>
                   </TouchableOpacity>
                 )}
+                {onDelete && (
+                  <TouchableOpacity
+                    onPress={() => setShowMenu(v => !v)}
+                    style={styles.menuButton}
+                    disabled={isDeleting}>
+                    {isDeleting
+                      ? <ActivityIndicator size="small" color="#666" />
+                      : <Text style={[styles.menuIcon, {color: subtextColor}]}>⋮</Text>}
+                  </TouchableOpacity>
+                )}
               </View>
+
+              {showMenu && (
+                <View style={[styles.menuDropdown, {backgroundColor: isDarkMode ? '#2a2a2a' : '#ffffff'}]}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={handleDeletePress}>
+                    <Text style={styles.menuItemDelete}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {/* Confidence badge */}
               {car.confidence && (
@@ -302,6 +354,39 @@ const styles = StyleSheet.create({
   likeIcon: {
     fontSize: 24,
     color: '#ff4757',
+  },
+  menuButton: {
+    padding: 4,
+    marginLeft: 8,
+    minWidth: 28,
+    alignItems: 'center',
+  },
+  menuIcon: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 36,
+    right: 0,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 100,
+    minWidth: 120,
+    overflow: 'hidden',
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  menuItemDelete: {
+    fontSize: 15,
+    color: '#f44336',
+    fontWeight: '600',
   },
   divider: {
     height: 1,

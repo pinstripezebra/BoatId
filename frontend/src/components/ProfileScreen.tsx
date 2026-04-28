@@ -24,6 +24,7 @@ interface ProfileScreenProps {
   onLogout: () => void;
   onCarPress?: (car: DetailCarData) => void;
   onShowAboutUs?: () => void;
+  refreshKey?: number;
 }
 
 interface GridCar {
@@ -41,7 +42,7 @@ const NUM_COLUMNS = 2;
 const screenWidth = Dimensions.get('window').width;
 const TILE_SIZE = (screenWidth - 40 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onShowAboutUs }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onShowAboutUs, refreshKey }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [posts, setPosts] = useState<GridCar[]>([]);
@@ -117,6 +118,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
     };
     init();
   }, [loadPosts, loadLikedCars]);
+
+  // Reload posts when a car has been deleted externally
+  useEffect(() => {
+    if (refreshKey === undefined || refreshKey === 0) return;
+    loadPosts(1).then(() => setPostsPage(1));
+  }, [refreshKey, loadPosts]);
 
   const handleLoadMore = async () => {
     if (isLoadingMore) return;
