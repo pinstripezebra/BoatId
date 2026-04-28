@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from utils.rate_limit import limiter
-from api.routes import auth, cars, users, images
+from api.routes import auth, cars, users, images, car_id
 
 # Security event logger
 security_logger = logging.getLogger("carid.security")
@@ -43,6 +43,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
+app.include_router(car_id.router, prefix="/api/v1/cars", tags=["car-identification"])
 app.include_router(cars.router, prefix="/api/v1/cars", tags=["cars"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(images.router, prefix="/api/v1/images", tags=["images"])

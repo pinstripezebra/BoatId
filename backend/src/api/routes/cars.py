@@ -4,7 +4,6 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import Optional, List, Dict, Any
-import asyncio
 import json
 import os
 import boto3
@@ -15,13 +14,10 @@ from models.user import User
 from models.car_popularity import CarPopularity
 from models.liked_car import LikedCar
 from services.storage_service import CarStorageService
-from services.license_plate_service import LicensePlateBlurService
 from utils.database import get_db
 from utils.rate_limit import limiter
 from api.routes.users import get_current_user, get_current_user_optional
 from dotenv import load_dotenv
-from image_identification import AnthropicCarIdentifier, CarIdentificationResult
-from utils.image_redaction import blur_license_plates
 
 
 # Load environment variables
@@ -33,153 +29,6 @@ security = HTTPBearer()
 # Initialize S3 client
 s3_client = boto3.client('s3', region_name=os.getenv('AWS_REGION', 'us-west-2'))
 aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
-anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-
-# Dependency to get car identifier
-def get_car_identifier():
-    if not anthropic_key:
-        raise HTTPException(status_code=500, detail="Anthropic API key not configured")
-    return AnthropicCarIdentifier(api_key=anthropic_key)
-
-@router.post("/identify")
-@limiter.limit("20/minute")
-async def identify_car_from_image(
-    request: Request,
-    image: UploadFile = File(..., description="Image file to analyze"),
-    requested_fields: Optional[str] = Form(['make', 'model', 'description', 'year', 'length', 
-                             'car_type', 'body_type', 'features'], description="Comma-separated list of fields to return"),
-    store_results: bool = Form(True, description="Whether to store results in database"),
-    latitude: Optional[float] = Form(None, description="Latitude of where the photo was taken"),
-    longitude: Optional[float] = Form(None, description="Longitude of where the photo was taken"),
-    identifier: AnthropicCarIdentifier = Depends(get_car_identifier),
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
-):
-    """
-    Identify car details from an uploaded image using Anthropic's Claude Vision model.
-    
-    Returns structured information about the car including make, model, type, and other details.
-    """
-    
-    # Validate file type
-    allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
-    if image.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid file type. Supported types: {', '.join(allowed_types)}"
-        )
-    
-    # Validate file size (10MB limit)
-    max_size = 10 * 1024 * 1024  # 10MB
-    if image.size and image.size > max_size:
-        raise HTTPException(
-            status_code=400, 
-            detail="File too large. Maximum size is 10MB."
-        )
-    
-    try:
-        # Read image data
-        image_data = await image.read()
-        
-        # Parse requested fields - supports both JSON array and comma-separated string
-        fields = []
-        if requested_fields:
-            try:
-                parsed = json.loads(requested_fields)
-                if isinstance(parsed, list):
-                    fields = [str(f).strip() for f in parsed if str(f).strip()]
-                else:
-                    fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
-            except (json.JSONDecodeError, TypeError):
-                fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
-        
-        # Stage 1: Detect car make from badge/logo
-        make_result = await identifier.find_make(image_data)
-        make_hint = make_result.get("make")
-        make_confidence = make_result.get("confidence")
-
-        # Stage 2 & 3 in parallel: identify car (with make hint) and blur license plates
-        blur_service = LicensePlateBlurService(aws_region=os.getenv("AWS_REGION", "us-west-2"))
-        result, blur_result = await asyncio.gather(
-            identifier.identify_car(image_data, fields, make_hint, make_confidence),
-            blur_service.blur_license_plates(image_data, image.content_type or "image/jpeg"),
-        )
-
-        # Store results if requested and image contains a car — blurred image is sent to S3 (license plates redacted)
-        identification_id = None
-        image_url = None
-        if store_results and result.is_car:
-            storage_service = CarStorageService(
-                db_session=db,
-                s3_bucket=aws_bucket_name or "carid-images"
-            )
-            identification_id = await storage_service.store_identification_result(
-                image_filename=image.filename or "car_image.jpg",
-                image_data=blur_result.image_data,
-                result=result,
-                user_id=current_user.id if current_user else None,
-                latitude=latitude,
-                longitude=longitude
-            )
-            # Generate presigned URL for the stored image so the client can display it immediately
-            if identification_id:
-                db_car = db.query(CarIdentification).filter(CarIdentification.id == identification_id).first()
-                if db_car and db_car.s3_image_key:
-                    try:
-                        image_url = s3_client.generate_presigned_url(
-                            'get_object',
-                            Params={'Bucket': aws_bucket_name or 'carid-images', 'Key': db_car.s3_image_key},
-                            ExpiresIn=3600,
-                        )
-                    except Exception:
-                        base_url = str(request.base_url).rstrip('/')
-                        image_url = f"{base_url}/api/v1/cars/identifications/{identification_id}/image"
-        
-        # Build response
-        response_data = {
-            "success": True,
-            "identification_id": identification_id,
-            "filename": image.filename,
-            "is_car": result.is_car
-        }
-        
-        if result.is_car:
-            # Add car details to response
-            car_data = {}
-            
-            # Include all non-None fields
-            for field_name in ['make', 'model', 'description', 'year', 'length', 
-                             'car_type', 'body_type', 'features']:
-                value = getattr(result, field_name)
-                if value is not None:
-                    # Only include if no specific fields requested or field was requested
-                    if not fields or field_name in fields:
-                        car_data[field_name] = value
-
-            if result.make_source:
-                car_data["make_source"] = result.make_source
-
-            response_data.update({
-                "car_details": car_data,
-                "confidence": result.confidence
-            })
-                
-        else:
-            response_data.update({
-                "message": "No car detected in the image",
-                "confidence": result.confidence
-            })
-            if result.description:
-                response_data["description"] = result.description
-        
-        return JSONResponse(content=response_data, status_code=200)
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Unexpected error during identification")
 
 
 # for uploading files to s3 bucket
@@ -740,112 +589,3 @@ async def get_nearby_cars(
         "center": {"latitude": latitude, "longitude": longitude},
         "radius_km": radius_km
     }
-
-@router.post("/identify", response_class=StreamingResponse)
-async def identify_car_from_image_streaming(
-    request: Request,
-    image: UploadFile = File(..., description="Image file to analyze"),
-    requested_fields: Optional[str] = Form(['make', 'model', 'description', 'year', 'length', 
-                             'car_type', 'body_type', 'features'], description="Comma-separated list of fields to return"),
-    store_results: bool = Form(True, description="Whether to store results in database"),
-    latitude: Optional[float] = Form(None, description="Latitude of where the photo was taken"),
-    longitude: Optional[float] = Form(None, description="Longitude of where the photo was taken"),
-    identifier: AnthropicCarIdentifier = Depends(get_car_identifier),
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
-):
-    """
-    Identify car details from an uploaded image using Anthropic's Claude Vision model.
-    
-    Returns structured information about the car including make, model, type, and other details.
-    """
-    
-    # Validate file type
-    allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
-    if image.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid file type. Supported types: {', '.join(allowed_types)}"
-        )
-    
-    # Validate file size (10MB limit)
-    max_size = 10 * 1024 * 1024  # 10MB
-    if image.size and image.size > max_size:
-        raise HTTPException(
-            status_code=400, 
-            detail="File too large. Maximum size is 10MB."
-        )
-    
-    try:
-        # Read image data
-        image_data = await image.read()
-        
-        # Parse requested fields
-        fields = []
-        if requested_fields:
-            fields = [field.strip() for field in requested_fields.split(',') if field.strip()]
-        
-        # Identify car using Anthropic
-        result = await identifier.identify_car(image_data, fields)
-        
-        # Store results if requested
-        identification_id = None
-        if store_results:
-            # If car is detected, redact license plates before storing/uploading
-            if result.is_car:
-                image_data = blur_license_plates(image_data)
-            storage_service = CarStorageService(
-                db_session=db,
-                s3_bucket=aws_bucket_name or "carid-images"
-            )
-            identification_id = await storage_service.store_identification_result(
-                image_filename=image.filename or "car_image.jpg",
-                image_data=image_data,
-                result=result,
-                user_id=current_user.id if current_user else None,
-                latitude=latitude,
-                longitude=longitude
-            )
-        
-        # Build response
-        response_data = {
-            "success": True,
-            "identification_id": identification_id,
-            "filename": image.filename,
-            "is_car": result.is_car
-        }
-        
-        if result.is_car:
-            # Add car details to response
-            car_data = {}
-            
-            # Include all non-None fields
-            for field_name in ['make', 'model', 'description', 'year', 'length', 
-                             'car_type', 'body_type', 'features']:
-                value = getattr(result, field_name)
-                if value is not None:
-                    # Only include if no specific fields requested or field was requested
-                    if not fields or field_name in fields:
-                        car_data[field_name] = value
-            
-            response_data.update({
-                "car_details": car_data,
-                "confidence": result.confidence
-            })
-                
-        else:
-            response_data.update({
-                "message": "No car detected in the image",
-                "confidence": result.confidence
-            })
-            if result.description:
-                response_data["description"] = result.description
-        
-        return JSONResponse(content=response_data, status_code=200)
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Unexpected error during identification")
