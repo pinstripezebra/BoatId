@@ -21,9 +21,9 @@ class CarIdentificationResult:
     make_source: Optional[str] = None
 
 class AnthropicCarIdentifier:
-    HAIKU_MODEL = "claude-haiku-4-5-20251001"
+    HAIKU_MODEL = "claude-sonnet-4-6"
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-5-20251001"):
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
     
