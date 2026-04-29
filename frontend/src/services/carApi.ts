@@ -15,6 +15,7 @@ export interface CarDetails {
   car_type?: string;
   body_type?: string;
   features?: string[];
+  car_rarity?: string;
 }
 
 export interface CarStatistics {

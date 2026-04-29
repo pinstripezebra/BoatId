@@ -22,6 +22,9 @@ class CarIdentification(Base):
     car_type = Column(String(50), index=True)
     year_estimate = Column(String(20), index=True)
     
+    # Car rarity tier assigned by AI
+    car_rarity = Column(String(20), nullable=True)  # common|uncommon|rare|epic|legendary
+
     # Track whether user edited the identification data
     user_modified = Column(Boolean, default=False, nullable=False, server_default='false')
     

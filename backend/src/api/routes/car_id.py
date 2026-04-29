@@ -220,7 +220,7 @@ async def identify_car_from_image(
         if result.is_car:
             car_data: dict = {}
             for field_name in ['make', 'model', 'description', 'year', 'length',
-                                'car_type', 'body_type', 'features']:
+                                'car_type', 'body_type', 'features', 'car_rarity']:
                 value = getattr(result, field_name)
                 if value is not None and (not fields or field_name in fields):
                     car_data[field_name] = value

@@ -19,6 +19,7 @@ class CarIdentificationResult:
     body_type: Optional[str] = None
     features: Optional[List[str]] = None
     make_source: Optional[str] = None
+    car_rarity: Optional[str] = None
 
 class AnthropicCarIdentifier:
     HAIKU_MODEL = "claude-sonnet-4-6"
@@ -54,7 +55,8 @@ class AnthropicCarIdentifier:
             'length': 'estimated length in feet',
             'car_type': 'type (sedan, SUV, truck, coupe, convertible, hatchback, etc.)',
             'body_type': 'body style (coupe, sedan, hatchback, wagon, etc.)',
-            'features': 'notable features as an array'
+            'features': 'notable features as an array',
+            'car_rarity': 'rarity tier of this car model — exactly one of: common|uncommon|rare|epic|legendary. common=everyday mass-market cars (e.g. Toyota Corolla), uncommon=less common but not rare, rare=limited production or older classics, epic=exotic or high-performance sports cars, legendary=ultra-rare supercars or one-of-a-kind vehicles'
         }
         
         requested_descriptions = [f'"{field}": {field_descriptions.get(field, field)}' 
@@ -200,6 +202,10 @@ If no badge or logo is visible: {"make": null, "confidence": "low"}"""
     
     def _parse_result(self, result_json: Dict) -> CarIdentificationResult:
         """Parse JSON response into structured result"""
+        rarity_raw = result_json.get('car_rarity')
+        valid_rarities = {'common', 'uncommon', 'rare', 'epic', 'legendary'}
+        car_rarity = rarity_raw.lower() if isinstance(rarity_raw, str) and rarity_raw.lower() in valid_rarities else None
+
         return CarIdentificationResult(
             is_car=result_json.get('is_car', False),
             make=result_json.get('make'),
@@ -211,4 +217,5 @@ If no badge or logo is visible: {"make": null, "confidence": "low"}"""
             confidence=result_json.get('confidence'),
             body_type=result_json.get('body_type'),
             features=result_json.get('features', []),
+            car_rarity=car_rarity,
         )

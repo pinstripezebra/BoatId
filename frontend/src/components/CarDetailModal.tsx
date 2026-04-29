@@ -21,6 +21,7 @@ export interface DetailCarData extends CarCardData {
   model?: string;
   identification_data?: CarDetails;
   car_statistics?: CarStatistics;
+  car_rarity?: string;
 }
 
 interface CarDetailModalProps {
@@ -158,6 +159,17 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
     }
   };
 
+  const rarityColor = (tier?: string) => {
+    switch (tier?.toLowerCase()) {
+      case 'common':    return '#4CAF50'; // green
+      case 'uncommon':  return '#9E9E9E'; // grey
+      case 'rare':      return '#9C27B0'; // purple
+      case 'epic':      return '#FF9800'; // orange
+      case 'legendary': return '#F44336'; // red
+      default:          return subtextColor;
+    }
+  };
+
   const renderField = (label: string, field: keyof CarDetails, displayValue?: string) => {
     const value = displayValue ?? (idData?.[field] as string | undefined) ?? '';
     if (!isEditing && !value) return null;
@@ -199,6 +211,17 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
             <View style={styles.content}>
               <View style={styles.nameRow}>
                 <Text style={[styles.name, {color: textColor, flex: 1}]}>{car.name}</Text>
+                {(car.car_rarity ?? idData?.car_rarity) && (() => {
+                  const tier = (car.car_rarity ?? idData?.car_rarity)!;
+                  const color = rarityColor(tier);
+                  return (
+                    <View style={[styles.rarityBadge, {backgroundColor: color + '22', borderColor: color}]}>
+                      <Text style={[styles.rarityText, {color}]}>
+                        {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                      </Text>
+                    </View>
+                  );
+                })()}
                 {onLikeToggle && (
                   <TouchableOpacity
                     onPress={() => onLikeToggle(car.id)}
@@ -444,6 +467,20 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  rarityBadge: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    alignSelf: 'center',
+    marginLeft: 8,
+    flexShrink: 0,
+  },
+  rarityText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   sectionTitle: {
     fontSize: 17,

@@ -77,7 +77,8 @@ class CarStorageService:
                 'car_type': result.car_type,
                 'confidence': result.confidence,
                 'body_type': result.body_type,
-                'features': result.features or []
+                'features': result.features or [],
+                'car_rarity': result.car_rarity,
             }
             
             # Store in database
@@ -92,6 +93,7 @@ class CarStorageService:
                 model=result.model,
                 car_type=result.car_type,
                 year_estimate=result.year,
+                car_rarity=result.car_rarity,
                 latitude=latitude,
                 longitude=longitude
             )
