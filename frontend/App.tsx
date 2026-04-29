@@ -522,7 +522,7 @@ function App(): React.JSX.Element {
         </ScrollView>
       )}
 
-      {!showAboutUs && !showPrivacyPolicy && (
+      {!showAboutUs && !showPrivacyPolicy && !(activeTab === 'profile' && !isLoggedIn) && (
         <BottomNavBar
           onCameraPress={handleCameraPress}
           isProcessing={isProcessing}
