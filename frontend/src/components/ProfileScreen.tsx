@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   useColorScheme,
   FlatList,
+  ScrollView,
   Dimensions,
   Modal,
   TextInput,
@@ -16,7 +17,7 @@ import {
 import CachedImage from './CachedImage';
 import { AuthService } from '../services/authService';
 import { CarApiService } from '../services';
-import type { CarDetails } from '../services/carApi';
+import type { CarDetails, Badge } from '../services/carApi';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 import type { DetailCarData } from './CarDetailModal';
 
@@ -60,6 +61,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
   const [deleteInput, setDeleteInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [badges, setBadges] = useState<Badge[]>([]);
 
   const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
@@ -113,7 +115,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
-      await Promise.all([loadPosts(1), loadLikedCars(1)]);
+      await Promise.all([
+        loadPosts(1),
+        loadLikedCars(1),
+        CarApiService.getUserBadges().then(setBadges).catch(() => {}),
+      ]);
       setIsLoading(false);
     };
     init();
@@ -237,6 +243,44 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
           </View>
         </View>
       </View>
+
+      {/* Badges */}
+      {badges.length > 0 && (
+        <View style={[styles.badgesCard, { backgroundColor: cardBg }]}>
+          <Text style={[styles.badgesTitle, { color: textColor }]}>Badges</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgesRow}>
+            {badges.map(badge => (
+              <View key={badge.id} style={styles.badgeItem}>
+                <View style={[
+                  styles.badgeImageWrap,
+                  !badge.earned && styles.badgeImageWrapLocked,
+                ]}>
+                  {badge.image_url ? (
+                    <CachedImage
+                      source={{ uri: badge.image_url }}
+                      style={[styles.badgeImage, !badge.earned && styles.badgeImageGray]}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <Text style={styles.badgeFallback}>⭐</Text>
+                  )}
+                  {!badge.earned && (
+                    <View style={styles.badgeLockOverlay}>
+                      <Text style={styles.badgeLockIcon}>🔒</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.badgeName, { color: badge.earned ? textColor : subtextColor }]} numberOfLines={1}>
+                  {badge.name}
+                </Text>
+                <Text style={[styles.badgeReq, { color: subtextColor }]}>
+                  {badge.required_images} {badge.required_images === 1 ? 'car' : 'cars'}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -671,6 +715,79 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#ffffff',
     fontWeight: '600',
+  },
+  badgesCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  badgesTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    paddingRight: 8,
+  },
+  badgeItem: {
+    alignItems: 'center',
+    width: 72,
+  },
+  badgeImageWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    backgroundColor: '#1e1e30',
+    marginBottom: 6,
+  },
+  badgeImageWrapLocked: {
+    borderColor: '#555',
+    backgroundColor: '#2a2a2a',
+  },
+  badgeImage: {
+    width: 60,
+    height: 60,
+  },
+  badgeImageGray: {
+    opacity: 0.25,
+  },
+  badgeFallback: {
+    fontSize: 28,
+  },
+  badgeLockOverlay: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeLockIcon: {
+    fontSize: 22,
+  },
+  badgeName: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  badgeReq: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 2,
   },
 });
 

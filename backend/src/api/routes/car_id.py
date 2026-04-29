@@ -15,6 +15,7 @@ from models.car import CarIdentification
 from models.user import User
 from models.user_camera_stats import UserCameraStats
 from services.storage_service import CarStorageService
+from services.badge_service import check_and_award_badges
 from services.license_plate_service import LicensePlateBlurService
 from utils.database import get_db
 from utils.rate_limit import limiter
@@ -207,6 +208,15 @@ async def identify_car_from_image(
         # Increment weekly camera usage counter now that identification succeeded
         stats.weekly_count += 1
         db.commit()
+
+        # Award any newly-crossed badges (fires only when a car was successfully identified)
+        if result.is_car and current_user:
+            try:
+                check_and_award_badges(db, current_user.id)
+            except Exception as _badge_exc:
+                # Badge award failure must never break the identification response
+                import logging as _logging
+                _logging.getLogger(__name__).warning("Badge award failed: %s", _badge_exc)
 
         # Build response
         response_data: dict = {

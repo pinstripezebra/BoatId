@@ -157,6 +157,14 @@ export interface UserLikedCarsResponse {
   total_pages: number;
 }
 
+export interface Badge {
+  id: number;
+  name: string;
+  required_images: number;
+  image_url: string | null;
+  earned: boolean;
+}
+
 export class CarApiService {
   /**
    * Create FormData for file upload
@@ -329,6 +337,13 @@ export class CarApiService {
    */
   static async deleteIdentification(id: number): Promise<void> {
     await HttpClient.delete(`api/v1/cars/identifications/${id}`);
+  }
+
+  /**
+   * Get all badges for the current user (all 4, with earned:bool)
+   */
+  static async getUserBadges(): Promise<Badge[]> {
+    return await HttpClient.get<Badge[]>('api/v1/badges/users/me/badges');
   }
 }
 

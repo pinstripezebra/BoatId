@@ -122,7 +122,25 @@ user_camera_stats_table_creation_query = """CREATE TABLE IF NOT EXISTS user_came
     CONSTRAINT uq_user_camera_stats_user UNIQUE (user_id)
     )"""
 
+badges_table_creation_query = """CREATE TABLE IF NOT EXISTS badges (
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(50)  NOT NULL,
+    required_images INTEGER      NOT NULL,
+    s3_key          VARCHAR(500)
+    )"""
+
+user_badges_table_creation_query = """CREATE TABLE IF NOT EXISTS user_badges (
+    id        SERIAL PRIMARY KEY,
+    user_id   UUID    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    badge_id  INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+    car_count INTEGER NOT NULL,
+    earned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_user_badge UNIQUE (user_id, badge_id)
+    )"""
+
 # Deleting tables if they already exist (including old boat-named tables from before rename)
+engine.delete_table('user_badges')
+engine.delete_table('badges')
 engine.delete_table('liked_boats')
 engine.delete_table('boat_popularity')
 engine.delete_table('boat_identifications')
@@ -175,6 +193,8 @@ engine.create_table(refresh_tokens_table_creation_query)
 engine.create_table(car_popularity_table_creation_query)
 engine.create_table(liked_cars_table_creation_query)
 engine.create_table(user_camera_stats_table_creation_query)
+engine.create_table(badges_table_creation_query)
+engine.create_table(user_badges_table_creation_query)
 
 # Create indexes for better performance using individual calls
 index_queries = [
