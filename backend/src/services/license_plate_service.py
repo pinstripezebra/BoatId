@@ -17,7 +17,7 @@ _REKOGNITION_MAX_BYTES = 5 * 1024 * 1024
 # Rekognition may use either label name depending on the model version/region
 _LICENSE_PLATE_LABEL_NAMES = {"License Plate", "Vehicle Registration Plate"}
 # Regex that matches typical license plate text: 4-10 uppercase alphanumeric chars (spaces allowed)
-_PLATE_TEXT_RE = re.compile(r'^[A-Z0-9 ]{4,10}$')
+_PLATE_TEXT_RE = re.compile(r'^[A-Z0-9][A-Z0-9 \-\.]{2,9}[A-Z0-9]$')
 
 
 @dataclass
@@ -214,3 +214,51 @@ class LicensePlateBlurService:
             text_lines_found=line_texts,
             error=err or text_err,
         )
+
+    async def blur_with_known_text(
+        self, image_data: bytes, plate_texts: list
+    ) -> BlurResult:
+        """
+        Targeted fallback: use Rekognition detect_text to locate and blur regions
+        that match known plate text strings identified by Claude.
+        Matches are normalised (spaces/dashes stripped) before comparison.
+        """
+        rekognition_bytes = self._prepare_for_rekognition(image_data)
+        try:
+            response = self._rekognition.detect_text(Image={"Bytes": rekognition_bytes})
+        except Exception as exc:
+            return BlurResult(
+                image_data=image_data, plates_detected=0,
+                detection_method="error", error=str(exc),
+            )
+
+        normalized_targets = [re.sub(r'[\s\-]', '', t.upper()) for t in plate_texts]
+
+        bounding_boxes = []
+        for detection in response.get("TextDetections", []):
+            raw = detection.get("DetectedText", "").upper()
+            norm = re.sub(r'[\s\-]', '', raw)
+            if any(
+                (tgt in norm or norm in tgt)
+                for tgt in normalized_targets
+                if len(tgt) >= 3
+            ):
+                box = detection.get("Geometry", {}).get("BoundingBox")
+                if box:
+                    bounding_boxes.append(box)
+
+        if bounding_boxes:
+            try:
+                blurred = self._apply_blur(image_data, bounding_boxes, "image/jpeg")
+                return BlurResult(
+                    image_data=blurred,
+                    plates_detected=len(bounding_boxes),
+                    detection_method="known_text_match",
+                )
+            except Exception as exc:
+                return BlurResult(
+                    image_data=image_data, plates_detected=0,
+                    detection_method="error", error=str(exc),
+                )
+
+        return BlurResult(image_data=image_data, plates_detected=0, detection_method="none")

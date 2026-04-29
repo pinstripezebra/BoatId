@@ -3,9 +3,12 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 import asyncio
+import io
 import json
 import os
+import re as _re
 import boto3
+from PIL import Image as _PIL_Image, ImageOps as _PIL_ImageOps
 
 from models.car import CarIdentification
 from models.user import User
@@ -26,6 +29,35 @@ router = APIRouter()
 s3_client = boto3.client('s3', region_name=os.getenv('AWS_REGION', 'us-west-2'))
 aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
 _anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+_PLATE_KEYWORDS = ('license', 'licence', 'plate number', 'registration', 'number plate')
+_PLATE_CANDIDATE_RE = _re.compile(r'[A-Z0-9]{2,6}(?:[\ \-][A-Z0-9]{1,6})+|[A-Z0-9]{4,10}', _re.IGNORECASE)
+
+
+def _extract_plate_texts_from_features(features) -> list:
+    """Return candidate license-plate strings found inside Claude feature entries."""
+    texts = []
+    for f in (features or []):
+        if any(kw in f.lower() for kw in _PLATE_KEYWORDS):
+            for m in _PLATE_CANDIDATE_RE.findall(f):
+                normalized = _re.sub(r'[\s\-]', '', m.upper())
+                if 4 <= len(normalized) <= 10:
+                    texts.append(m.upper())
+    return texts
+
+
+def _normalize_exif(image_data: bytes) -> bytes:
+    """Physically rotate image pixels to match EXIF orientation tag, then strip the tag.
+    Returns original bytes unchanged on any error."""
+    try:
+        pil = _PIL_Image.open(io.BytesIO(image_data))
+        orig_format = pil.format or 'JPEG'
+        pil = _PIL_ImageOps.exif_transpose(pil)
+        buf = io.BytesIO()
+        pil.save(buf, format=orig_format)
+        return buf.getvalue()
+    except Exception:
+        return image_data
 
 
 def get_car_identifier() -> AnthropicCarIdentifier:
@@ -74,6 +106,9 @@ async def identify_car_from_image(
     try:
         image_data = await image.read()
 
+        # Normalize EXIF orientation once — all downstream code (blur, Claude, S3) sees upright pixels
+        image_data = _normalize_exif(image_data)
+
         # Parse requested fields — accepts JSON array or comma-separated string
         fields: list[str] = []
         if requested_fields:
@@ -98,6 +133,15 @@ async def identify_car_from_image(
             blur_service.blur_license_plates(image_data, image.content_type or "image/jpeg"),
         )
 
+        # If Rekognition missed the plate but Claude found it in features, do a targeted re-blur
+        final_image_data = blur_result.image_data
+        if result.is_car and blur_result.plates_detected == 0:
+            plate_texts = _extract_plate_texts_from_features(getattr(result, 'features', None))
+            if plate_texts:
+                retry = await blur_service.blur_with_known_text(final_image_data, plate_texts)
+                if retry.plates_detected > 0:
+                    final_image_data = retry.image_data
+
         # Store to S3 + DB only when a car was detected (blurred image stored)
         identification_id = None
         image_url = None
@@ -108,7 +152,7 @@ async def identify_car_from_image(
             )
             identification_id = await storage_service.store_identification_result(
                 image_filename=image.filename or "car_image.jpg",
-                image_data=blur_result.image_data,
+                image_data=final_image_data,
                 result=result,
                 user_id=current_user.id if current_user else None,
                 latitude=latitude,
