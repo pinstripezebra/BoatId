@@ -36,7 +36,7 @@ const FEATURES = [
   {
     image: require('../assets/images/car4.png'),
     title: 'Like & Discover',
-    description: 'Like your favourite cars and explore what's popular in the community.',
+    description: "Like your favourite cars and explore what's popular in the community.",
   },
 ];
 
