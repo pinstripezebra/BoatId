@@ -17,6 +17,7 @@ class User(Base):
     reset_code = Column(String(6), nullable=True)
     reset_code_expires_at = Column(DateTime(timezone=True), nullable=True)
     role = Column(String(20), nullable=False)
+    user_type = Column(String(20), nullable=False, server_default='premium')
     location = Column(String(255))
     phone_number = Column(String(20))
     description = Column(Text)

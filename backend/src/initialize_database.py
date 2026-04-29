@@ -47,6 +47,7 @@ users_table_creation_query = """CREATE TABLE IF NOT EXISTS users (
     reset_code VARCHAR(6),
     reset_code_expires_at TIMESTAMP WITH TIME ZONE,
     role VARCHAR(20) NOT NULL,
+    user_type VARCHAR(20) NOT NULL DEFAULT 'premium',
     location VARCHAR(255),
     phone_number VARCHAR(20),
     description TEXT,
@@ -111,10 +112,20 @@ car_details_table_creation_query = """CREATE TABLE IF NOT EXISTS car_details (
     CONSTRAINT uq_car_details_make_model UNIQUE (make, model)
     )"""
 
+user_camera_stats_table_creation_query = """CREATE TABLE IF NOT EXISTS user_camera_stats (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    weekly_count INTEGER NOT NULL DEFAULT 0,
+    week_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_camera_stats_user UNIQUE (user_id)
+    )"""
+
 # Deleting tables if they already exist (including old boat-named tables from before rename)
 engine.delete_table('liked_boats')
 engine.delete_table('boat_popularity')
 engine.delete_table('boat_identifications')
+engine.delete_table('user_camera_stats')
 engine.delete_table('car_details')
 engine.delete_table('liked_cars')
 engine.delete_table('car_popularity')
@@ -162,6 +173,7 @@ engine.create_table(car_details_table_creation_query)
 engine.create_table(refresh_tokens_table_creation_query)
 engine.create_table(car_popularity_table_creation_query)
 engine.create_table(liked_cars_table_creation_query)
+engine.create_table(user_camera_stats_table_creation_query)
 
 # Create indexes for better performance using individual calls
 index_queries = [

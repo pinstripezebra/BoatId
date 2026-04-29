@@ -41,5 +41,6 @@ def create_tables():
     from models.car_popularity import CarPopularity
     from models.liked_car import LikedCar
     from models.car_details import CarDetails
+    from models.user_camera_stats import UserCameraStats
 
     Base.metadata.create_all(bind=engine)

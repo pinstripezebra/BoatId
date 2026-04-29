@@ -285,3 +285,20 @@ async def delete_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deleting account"
         )
+
+
+@router.post("/upgrade", summary="Upgrade account to premium (placeholder)")
+async def upgrade_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Upgrade the current user's account type to premium.
+    Placeholder endpoint — payment processing to be added in a future release.
+    """
+    if current_user.user_type == 'premium':
+        return {"message": "Account is already premium", "user_type": "premium"}
+
+    current_user.user_type = 'premium'
+    db.commit()
+    return {"message": "Account upgraded to premium", "user_type": "premium"}

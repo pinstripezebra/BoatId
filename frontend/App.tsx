@@ -38,6 +38,8 @@ import AboutUsScreen from './src/components/AboutUsScreen';
 import PrivacyPolicyScreen from './src/components/PrivacyPolicyScreen';
 import CategoryScreen from './src/components/CategoryScreen';
 import type { CategoryType } from './src/components/CategoryScreen';
+import WelcomeModal from './src/components/WelcomeModal';
+import UpgradeAccountScreen from './src/components/UpgradeAccountScreen';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { CarApiService } from './src/services';
@@ -63,6 +65,10 @@ function App(): React.JSX.Element {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [categoryScreen, setCategoryScreen] = useState<CategoryType | null>(null);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showUpgradeScreen, setShowUpgradeScreen] = useState(false);
+  // Guest auth flow state: which login sub-screen to show when a guest taps profile/auth
+  const [guestAuthView, setGuestAuthView] = useState<'login' | 'verify' | 'forgot' | 'reset' | null>(null);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f9fa',
@@ -78,6 +84,9 @@ function App(): React.JSX.Element {
     AuthService.loadStoredAuth().then(authenticated => {
       setIsLoggedIn(authenticated);
       setIsCheckingAuth(false);
+      if (!authenticated) {
+        setShowWelcomeModal(true);
+      }
     });
   }, []);
 
@@ -174,6 +183,17 @@ function App(): React.JSX.Element {
   }, []);
 
   const handleLikeToggle = useCallback(async (carId: string) => {
+    if (!isLoggedIn) {
+      Alert.alert(
+        'Account Required',
+        'Create an account to like and save cars.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign Up', onPress: () => { setShowWelcomeModal(false); setGuestAuthView('login'); setActiveTab('profile'); } },
+        ],
+      );
+      return;
+    }
     const numericId = parseInt(carId, 10);
     const wasLiked = likedCarIds.has(carId);
     try {
@@ -193,7 +213,7 @@ function App(): React.JSX.Element {
     } catch (error) {
       console.error('Failed to toggle like:', error);
     }
-  }, [likedCarIds, loadPopularCars]);
+  }, [isLoggedIn, likedCarIds, loadPopularCars]);
 
   const isCarLiked = useCallback((id: string) => likedCarIds.has(id), [likedCarIds]);
 
@@ -212,10 +232,11 @@ function App(): React.JSX.Element {
 
   // Prefetch and cache after login
   useEffect(() => {
+    // Public data — always load
+    loadPopularCars();
+    loadNearbyCars();
     if (isLoggedIn) {
       loadUserCars();
-      loadPopularCars();
-      loadNearbyCars();
       loadLikedCarIds();
 
       // Prefetch and cache popular, nearby, and history
@@ -246,57 +267,49 @@ function App(): React.JSX.Element {
     );
   }
 
-  // Show login screen if not authenticated
-  if (!isLoggedIn) {
-    if (pendingVerificationEmail) {
-      return (
-        <VerificationScreen
-          email={pendingVerificationEmail}
-          onVerified={() => {
-            setPendingVerificationEmail(null);
-            setIsLoggedIn(true);
-          }}
-          onBack={() => setPendingVerificationEmail(null)}
-        />
-      );
-    }
-
-    if (resetFlowStep === 'forgot') {
-      return (
-        <ForgotPasswordScreen
-          onCodeSent={(email) => {
-            setResetFlowEmail(email);
-            setResetFlowStep('reset');
-          }}
-          onBack={() => {
-            setResetFlowStep(null);
-            setResetFlowEmail(null);
-          }}
-        />
-      );
-    }
-
-    if (resetFlowStep === 'reset' && resetFlowEmail) {
-      return (
-        <ResetPasswordScreen
-          email={resetFlowEmail}
-          onResetSuccess={() => {
-            setResetFlowStep(null);
-            setResetFlowEmail(null);
-          }}
-          onBack={() => {
-            setResetFlowStep(null);
-            setResetFlowEmail(null);
-          }}
-        />
-      );
-    }
-
+  // Verification / reset flow shown inline for both guests and logged-in
+  if (pendingVerificationEmail) {
     return (
-      <LoginScreen
-        onLoginSuccess={() => setIsLoggedIn(true)}
-        onNeedsVerification={(email) => setPendingVerificationEmail(email)}
-        onForgotPassword={() => setResetFlowStep('forgot')}
+      <VerificationScreen
+        email={pendingVerificationEmail}
+        onVerified={() => {
+          setPendingVerificationEmail(null);
+          setIsLoggedIn(true);
+          setShowWelcomeModal(false);
+          setGuestAuthView(null);
+        }}
+        onBack={() => setPendingVerificationEmail(null)}
+      />
+    );
+  }
+
+  if (resetFlowStep === 'forgot') {
+    return (
+      <ForgotPasswordScreen
+        onCodeSent={(email) => {
+          setResetFlowEmail(email);
+          setResetFlowStep('reset');
+        }}
+        onBack={() => {
+          setResetFlowStep(null);
+          setResetFlowEmail(null);
+        }}
+      />
+    );
+  }
+
+  if (resetFlowStep === 'reset' && resetFlowEmail) {
+    return (
+      <ResetPasswordScreen
+        email={resetFlowEmail}
+        onResetSuccess={() => {
+          setResetFlowStep(null);
+          setResetFlowEmail(null);
+        }}
+        onBack={() => {
+          setResetFlowStep(null);
+          setResetFlowEmail(null);
+        }}
       />
     );
   }
@@ -305,6 +318,17 @@ function App(): React.JSX.Element {
 
   // Feature handlers
   const handleCameraPress = async () => {
+    if (!isLoggedIn) {
+      Alert.alert(
+        'Account Required',
+        'Create a free account to identify cars with your camera.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign Up', onPress: () => { setShowWelcomeModal(false); setGuestAuthView('login'); setActiveTab('profile'); } },
+        ],
+      );
+      return;
+    }
     try {
       const result = await captureAndIdentify(['make', 'model', 'description', 'car_type', 'year', 'body_type', 'features']);
       
@@ -334,8 +358,21 @@ function App(): React.JSX.Element {
           result.message || 'The image does not appear to contain a car.'
         );
       }
-    } catch (error) {
-      console.error('Camera identification failed:', error);
+    } catch (error: any) {
+      // Handle weekly limit exceeded (429)
+      const errorCode = error?.response?.headers?.['x-error-code'] || error?.errorCode;
+      if (errorCode === 'limit_exceeded' || error?.response?.status === 429) {
+        Alert.alert(
+          'Weekly Limit Reached',
+          'You\'ve used your weekly identification. Upgrade to Premium for unlimited identifications.',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'Upgrade', onPress: () => setShowUpgradeScreen(true) },
+          ],
+        );
+      } else {
+        console.error('Camera identification failed:', error);
+      }
     }
   };
 
@@ -375,12 +412,20 @@ function App(): React.JSX.Element {
       ) : showPrivacyPolicy ? (
         <PrivacyPolicyScreen onClose={() => setShowPrivacyPolicy(false)} />
       ) : activeTab === 'profile' ? (
-        <ProfileScreen
-          onLogout={handleLogout}
-          onCarPress={handleCarPress}
-          onShowAboutUs={() => setShowAboutUs(true)}
-          refreshKey={profileRefreshKey}
-        />
+        isLoggedIn ? (
+          <ProfileScreen
+            onLogout={handleLogout}
+            onCarPress={handleCarPress}
+            onShowAboutUs={() => setShowAboutUs(true)}
+            refreshKey={profileRefreshKey}
+          />
+        ) : (
+          <LoginScreen
+            onLoginSuccess={() => { setIsLoggedIn(true); setGuestAuthView(null); setShowWelcomeModal(false); }}
+            onNeedsVerification={(email) => setPendingVerificationEmail(email)}
+            onForgotPassword={() => setResetFlowStep('forgot')}
+          />
+        )
       ) : activeTab === 'map' ? (
         <MapScreen onCarPress={handleCarPress} />
       ) : activeTab === 'search' ? (
@@ -422,6 +467,16 @@ function App(): React.JSX.Element {
           </View>
 
           <SearchBar onPress={() => setActiveTab('search')} />
+
+          {!isLoggedIn && (
+            <TouchableOpacity
+              style={styles.guestBanner}
+              onPress={() => { setShowWelcomeModal(false); setGuestAuthView('login'); setActiveTab('profile'); }}>
+              <Text style={styles.guestBannerText}>
+                👤 Sign in or create an account to like cars and identify with your camera
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <HorizontalCarList
             title="Popular Cars"
@@ -497,6 +552,25 @@ function App(): React.JSX.Element {
         onClose={handleIdentificationModalClose}
         editable
       />
+
+      <WelcomeModal
+        visible={showWelcomeModal && !isLoggedIn}
+        onDismiss={() => setShowWelcomeModal(false)}
+        onSignUp={() => { setShowWelcomeModal(false); setGuestAuthView('login'); setActiveTab('profile'); }}
+        onLogin={() => { setShowWelcomeModal(false); setGuestAuthView('login'); setActiveTab('profile'); }}
+      />
+
+      {showUpgradeScreen && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <UpgradeAccountScreen
+            onClose={() => setShowUpgradeScreen(false)}
+            onUpgraded={() => {
+              setShowUpgradeScreen(false);
+              setProfileRefreshKey(k => k + 1);
+            }}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -550,6 +624,21 @@ const styles = StyleSheet.create({
   homeFooterDivider: {
     marginHorizontal: 10,
     opacity: 0.55,
+  },
+  guestBanner: {
+    backgroundColor: '#2196f3',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 4,
+    marginHorizontal: 2,
+  },
+  guestBannerText: {
+    color: '#ffffff',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   centered: {
     justifyContent: 'center',

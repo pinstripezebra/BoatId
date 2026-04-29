@@ -10,6 +10,7 @@ export interface AuthUser {
   user_id: string;
   username: string;
   role: string;
+  user_type: string;
 }
 
 export interface LoginResponse {
@@ -19,6 +20,7 @@ export interface LoginResponse {
   user_id: string;
   username: string;
   role: string;
+  user_type: string;
 }
 
 export interface RegisterResponse {
@@ -82,6 +84,7 @@ export class AuthService {
       user_id: data.user_id,
       username: data.username,
       role: data.role,
+      user_type: data.user_type || 'premium',
     };
 
     // Store access token and user data in AsyncStorage
@@ -100,12 +103,13 @@ export class AuthService {
     username: string,
     password: string,
     email: string,
+    userType: string = 'basic',
   ): Promise<RegisterResponse> {
     const url = `${API_BASE_URL}/auth/register`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, email }),
+      body: JSON.stringify({ username, password, email, user_type: userType }),
     });
 
     if (!response.ok) {
@@ -136,6 +140,7 @@ export class AuthService {
       user_id: data.user_id,
       username: data.username,
       role: data.role,
+      user_type: data.user_type || 'premium',
     };
 
     await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
@@ -186,6 +191,7 @@ export class AuthService {
       user_id: data.user_id,
       username: data.username,
       role: data.role,
+      user_type: data.user_type || 'premium',
     };
 
     // Update stored tokens
@@ -237,6 +243,28 @@ export class AuthService {
 
     // Clear local storage after successful deletion
     await this.logout();
+  }
+
+  static async upgradeAccount(): Promise<void> {
+    const url = `${API_BASE_URL}/api/v1/users/upgrade`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to upgrade account');
+    }
+
+    // Update local user_type
+    if (this.user) {
+      this.user = { ...this.user, user_type: 'premium' };
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
+    }
   }
 
   static async forgotPassword(email: string): Promise<void> {

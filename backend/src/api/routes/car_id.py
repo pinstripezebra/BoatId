@@ -9,9 +9,11 @@ import os
 import re as _re
 import boto3
 from PIL import Image as _PIL_Image, ImageOps as _PIL_ImageOps
+from datetime import datetime, timezone
 
 from models.car import CarIdentification
 from models.user import User
+from models.user_camera_stats import UserCameraStats
 from services.storage_service import CarStorageService
 from services.license_plate_service import LicensePlateBlurService
 from utils.database import get_db
@@ -89,6 +91,29 @@ async def identify_car_from_image(
       2. identify_car — Sonnet identifies full details, constrained by make hint when confident
       3. blur_license_plates — runs in parallel with stage 2; only stored to S3 if is_car=true
     """
+
+    # Authentication required for identification
+    if current_user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"X-Error-Code": "auth_required"},
+        )
+
+    # Enforce weekly usage limits
+    stats = db.query(UserCameraStats).filter(UserCameraStats.user_id == current_user.id).first()
+    if stats is None:
+        stats = UserCameraStats(user_id=current_user.id, weekly_count=0, week_start=datetime.now(timezone.utc))
+        db.add(stats)
+        db.commit()
+        db.refresh(stats)
+
+    if current_user.user_type == 'basic' and stats.weekly_count >= 1:
+        raise HTTPException(
+            status_code=429,
+            detail="Weekly identification limit reached",
+            headers={"X-Error-Code": "limit_exceeded"},
+        )
 
     # Validate file type
     allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
@@ -178,6 +203,10 @@ async def identify_car_from_image(
                     except Exception:
                         base_url = str(request.base_url).rstrip('/')
                         image_url = f"{base_url}/api/v1/cars/identifications/{identification_id}/image"
+
+        # Increment weekly camera usage counter now that identification succeeded
+        stats.weekly_count += 1
+        db.commit()
 
         # Build response
         response_data: dict = {

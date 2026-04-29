@@ -38,6 +38,7 @@ class UserRegistration(BaseModel):
     password: str
     email: EmailStr
     role: str = "renter"  # Default role
+    user_type: str = "basic"  # basic or premium
     location: Optional[str] = None
     phone_number: Optional[str] = None
     description: Optional[str] = None
@@ -68,6 +69,7 @@ class Token(BaseModel):
     user_id: str
     username: str
     role: str
+    user_type: str
 
 class RefreshRequest(BaseModel):
     refresh_token: str
@@ -187,6 +189,7 @@ async def register_user(
             email=user_data.email,
             email_verified=False,
             role=user_data.role,
+            user_type=user_data.user_type if user_data.user_type in ('basic', 'premium') else 'basic',
             location=user_data.location,
             phone_number=user_data.phone_number,
             description=user_data.description
@@ -264,7 +267,8 @@ async def login_for_access_token(
             "token_type": "bearer",
             "user_id": str(user.id),
             "username": user.username,
-            "role": user.role
+            "role": user.role,
+            "user_type": user.user_type or 'premium',
         }
         
     except HTTPException:
@@ -321,7 +325,8 @@ async def login_user(
             token_type="bearer",
             user_id=str(user.id),
             username=user.username,
-            role=user.role
+            role=user.role,
+            user_type=user.user_type or 'premium',
         )
         
     except HTTPException:
@@ -394,7 +399,8 @@ async def refresh_token(
             token_type="bearer",
             user_id=str(user.id),
             username=user.username,
-            role=user.role
+            role=user.role,
+            user_type=user.user_type or 'premium',
         )
 
     except HTTPException:
@@ -499,7 +505,8 @@ async def verify_email(
             token_type="bearer",
             user_id=str(user.id),
             username=user.username,
-            role=user.role
+            role=user.role,
+            user_type=user.user_type or 'premium',
         )
 
     except HTTPException:

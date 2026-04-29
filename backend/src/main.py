@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from utils.rate_limit import limiter
-from api.routes import auth, cars, users, images, car_id, car_statistics
+from api.routes import auth, cars, users, images, car_id, car_statistics, camera_stats
 
 # Security event logger
 security_logger = logging.getLogger("carid.security")
@@ -48,6 +48,7 @@ app.include_router(cars.router, prefix="/api/v1/cars", tags=["cars"])
 app.include_router(car_statistics.router, prefix="/api/v1/car-statistics", tags=["car-statistics"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(images.router, prefix="/api/v1/images", tags=["images"])
+app.include_router(camera_stats.router, prefix="/api/v1/camera-stats", tags=["camera-stats"])
 
 @app.on_event("startup")
 async def on_startup():

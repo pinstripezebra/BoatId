@@ -29,6 +29,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [userType, setUserType] = useState<'basic' | 'premium'>('basic');
   const [isLoading, setIsLoading] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showAboutUs, setShowAboutUs] = useState(false);
@@ -65,7 +66,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
         await AuthService.login(username.trim(), password);
         onLoginSuccess();
       } else {
-        const result = await AuthService.register(username.trim(), password, email.trim());
+        const result = await AuthService.register(username.trim(), password, email.trim(), userType);
         onNeedsVerification(result.email);
       }
     } catch (error) {
@@ -125,6 +126,34 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
               keyboardType="email-address"
               autoCorrect={false}
             />
+          )}
+
+          {!isLogin && (
+            <View style={styles.userTypeContainer}>
+              <Text style={[styles.userTypeLabel, { color: subtextColor }]}>Account Type</Text>
+              <View style={styles.userTypeRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.userTypeOption,
+                    { borderColor: userType === 'basic' ? '#2196f3' : (isDarkMode ? '#555' : '#ddd') },
+                    userType === 'basic' && styles.userTypeSelected,
+                  ]}
+                  onPress={() => setUserType('basic')}>
+                  <Text style={[styles.userTypeTitle, { color: userType === 'basic' ? '#2196f3' : textColor }]}>Basic</Text>
+                  <Text style={[styles.userTypeDesc, { color: subtextColor }]}>1 identification per week</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.userTypeOption,
+                    { borderColor: userType === 'premium' ? '#2196f3' : (isDarkMode ? '#555' : '#ddd') },
+                    userType === 'premium' && styles.userTypeSelected,
+                  ]}
+                  onPress={() => setUserType('premium')}>
+                  <Text style={[styles.userTypeTitle, { color: userType === 'premium' ? '#2196f3' : textColor }]}>Premium</Text>
+                  <Text style={[styles.userTypeDesc, { color: subtextColor }]}>Unlimited identifications</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
           <TextInput
@@ -287,6 +316,37 @@ const styles = StyleSheet.create({
   switchButtonText: {
     color: '#2196f3',
     fontSize: 14,
+  },
+  userTypeContainer: {
+    marginBottom: 12,
+  },
+  userTypeLabel: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  userTypeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  userTypeOption: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  userTypeSelected: {
+    backgroundColor: 'rgba(33, 150, 243, 0.08)',
+  },
+  userTypeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  userTypeDesc: {
+    fontSize: 11,
+    textAlign: 'center',
   },
   requirementsList: {
     marginBottom: 8,
