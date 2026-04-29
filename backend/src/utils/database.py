@@ -40,5 +40,6 @@ def create_tables():
     from models.car import CarIdentification
     from models.car_popularity import CarPopularity
     from models.liked_car import LikedCar
-    
+    from models.car_details import CarDetails
+
     Base.metadata.create_all(bind=engine)

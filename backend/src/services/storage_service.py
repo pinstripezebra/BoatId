@@ -1,9 +1,11 @@
 import boto3
+import io
 import json
 import uuid
 import logging
 import os
 import requests as _http
+from PIL import Image, ImageOps
 from datetime import datetime
 from sqlalchemy.orm import Session
 from models.car import CarIdentification
@@ -44,7 +46,18 @@ class CarStorageService:
         longitude: Optional[float] = None
     ) -> int:
         """Store image in S3 and identification data in RDS"""
-        
+
+        # Correct EXIF orientation so zoomed/rotated camera photos appear upright
+        try:
+            pil_img = Image.open(io.BytesIO(image_data))
+            pil_img = ImageOps.exif_transpose(pil_img)
+            buf = io.BytesIO()
+            fmt = pil_img.format or 'JPEG'
+            pil_img.save(buf, format=fmt)
+            image_data = buf.getvalue()
+        except Exception as _exif_err:
+            logger.warning("EXIF transpose failed, uploading original: %s", _exif_err)
+
         # Generate unique S3 key
         timestamp = datetime.utcnow().strftime("%Y/%m/%d")
         unique_id = str(uuid.uuid4())

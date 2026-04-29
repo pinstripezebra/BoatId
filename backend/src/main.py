@@ -49,6 +49,12 @@ app.include_router(car_statistics.router, prefix="/api/v1/car-statistics", tags=
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(images.router, prefix="/api/v1/images", tags=["images"])
 
+@app.on_event("startup")
+async def on_startup():
+    from utils.database import create_tables
+    create_tables()
+
+
 @app.get("/")
 async def root():
     return {"message": "CarId API is running", "version": "1.0.0"}
