@@ -350,6 +350,19 @@ function App(): React.JSX.Element {
     loadUserCars();
   };
 
+  const handleCarPress = useCallback(async (car: DetailCarData) => {
+    if (car.car_statistics || !car.id) {
+      setSelectedCar(car);
+      return;
+    }
+    try {
+      const data = await CarApiService.getIdentificationById(parseInt(car.id, 10)) as any;
+      setSelectedCar({ ...car, car_statistics: data?.car_details ?? undefined });
+    } catch {
+      setSelectedCar(car);
+    }
+  }, []);
+
   return (
     <SafeAreaView style={backgroundStyle}>
       <StatusBar
@@ -364,16 +377,16 @@ function App(): React.JSX.Element {
       ) : activeTab === 'profile' ? (
         <ProfileScreen
           onLogout={handleLogout}
-          onCarPress={(car) => setSelectedCar(car)}
+          onCarPress={handleCarPress}
           onShowAboutUs={() => setShowAboutUs(true)}
           refreshKey={profileRefreshKey}
         />
       ) : activeTab === 'map' ? (
-        <MapScreen onCarPress={setSelectedCar} />
+        <MapScreen onCarPress={handleCarPress} />
       ) : activeTab === 'search' ? (
         <SearchResultsScreen
           onBack={() => setActiveTab('home')}
-          onCarPress={setSelectedCar}
+          onCarPress={handleCarPress}
           isLiked={isCarLiked}
           onLikeToggle={handleLikeToggle}
         />
@@ -382,7 +395,7 @@ function App(): React.JSX.Element {
           title={categoryScreen === 'popular' ? 'Popular Cars' : 'Cars Near You'}
           category={categoryScreen}
           onBack={() => setCategoryScreen(null)}
-          onCarPress={(car) => setSelectedCar(car)}
+          onCarPress={handleCarPress}
           isLiked={isCarLiked}
           onLikeToggle={handleLikeToggle}
         />
@@ -413,7 +426,7 @@ function App(): React.JSX.Element {
           <HorizontalCarList
             title="Popular Cars"
             cars={popularCars}
-            onCarPress={(car) => setSelectedCar(car as DetailCarData)}
+            onCarPress={handleCarPress}
             maxItems={5}
             isLiked={isCarLiked}
             onLikeToggle={handleLikeToggle}
@@ -423,7 +436,7 @@ function App(): React.JSX.Element {
           <HorizontalCarList
             title="Cars Near You"
             cars={nearbyCars}
-            onCarPress={(car) => setSelectedCar(car as DetailCarData)}
+            onCarPress={handleCarPress}
             isLiked={isCarLiked}
             onLikeToggle={handleLikeToggle}
             onHeaderPress={() => setCategoryScreen('nearby')}
@@ -434,7 +447,7 @@ function App(): React.JSX.Element {
             <HorizontalCarList
               title="Your Cars"
               cars={userCars}
-              onCarPress={(car) => setSelectedCar(car as DetailCarData)}
+              onCarPress={handleCarPress}
               isLiked={isCarLiked}
               onLikeToggle={handleLikeToggle}
               onHeaderPress={() => setActiveTab('profile')}
