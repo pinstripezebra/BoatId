@@ -410,8 +410,9 @@ async def delete_car_identification(
 
     s3_key = car.s3_image_key  # capture before deletion
 
-    # Delete dependent liked_cars rows first to satisfy FK constraint
+    # Delete dependent rows first to satisfy FK constraints
     db.query(LikedCar).filter(LikedCar.car_id == identification_id).delete()
+    db.query(CarPopularity).filter(CarPopularity.id == identification_id).delete()
 
     db.delete(car)
     db.commit()
