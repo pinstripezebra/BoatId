@@ -424,6 +424,7 @@ function App(): React.JSX.Element {
             onLoginSuccess={() => { setIsLoggedIn(true); setGuestAuthView(null); setShowWelcomeModal(false); }}
             onNeedsVerification={(email) => setPendingVerificationEmail(email)}
             onForgotPassword={() => setResetFlowStep('forgot')}
+            onBack={() => setActiveTab('home')}
           />
         )
       ) : activeTab === 'map' ? (

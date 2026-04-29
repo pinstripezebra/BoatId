@@ -21,16 +21,20 @@ interface LoginScreenProps {
   onLoginSuccess: () => void;
   onNeedsVerification: (email: string) => void;
   onForgotPassword: () => void;
+  onBack?: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerification, onForgotPassword }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerification, onForgotPassword, onBack }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
   const [userType, setUserType] = useState<'basic' | 'premium'>('basic');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showAboutUs, setShowAboutUs] = useState(false);
 
@@ -41,7 +45,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
     { label: 'One number', test: (p: string) => /[0-9]/.test(p) },
     { label: 'One special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
   ];
-  const allRequirementsMet = password.length > 0 && passwordRequirements.every(r => r.test(password));
+  const allRequirementsMet =
+    password.length > 0 &&
+    passwordRequirements.every(r => r.test(password)) &&
+    (isLogin || confirmPassword === password);
 
   const textColor = isDarkMode ? '#ffffff' : '#333333';
   const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
@@ -57,6 +64,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
     }
     if (!isLogin && !email.trim()) {
       Alert.alert('Error', 'Please enter your email');
+      return;
+    }
+    if (!isLogin && password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
@@ -91,8 +102,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
       style={[styles.container, { backgroundColor: bgColor }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {onBack && (
+        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+          <Text style={[styles.backButtonText, { color: '#2196f3' }]}>← Back</Text>
+        </TouchableOpacity>
+      )}
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, onBack && styles.scrollContentWithBack]}
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.appTitle, { color: textColor }]}>🚗 CarID</Text>
@@ -156,14 +172,39 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
             </View>
           )}
 
-          <TextInput
-            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
-            placeholder="Password"
-            placeholderTextColor={isDarkMode ? '#888' : '#999'}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={[styles.passwordRow, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+            <TextInput
+              style={[styles.passwordInput, { color: textColor }]}
+              placeholder="Password"
+              placeholderTextColor={isDarkMode ? '#888' : '#999'}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeButton}>
+              <Text style={[styles.eyeText, { color: subtextColor }]}>{showPassword ? 'Hide' : 'Show'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {!isLogin && (
+            <View style={[styles.passwordRow, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+              <TextInput
+                style={[styles.passwordInput, { color: textColor }]}
+                placeholder="Confirm Password"
+                placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+              />
+              <TouchableOpacity onPress={() => setShowConfirmPassword(v => !v)} style={styles.eyeButton}>
+                <Text style={[styles.eyeText, { color: subtextColor }]}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!isLogin && confirmPassword.length > 0 && password !== confirmPassword && (
+            <Text style={[styles.requirementItem, { color: '#F44336', marginBottom: 8 }]}>✗ Passwords do not match</Text>
+          )}
 
           {!isLogin && password.length > 0 && (
             <View style={styles.requirementsList}>
@@ -217,6 +258,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNeedsVerifi
             onPress={() => {
               setIsLogin(!isLogin);
               setEmail('');
+              setConfirmPassword('');
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}
           >
             <Text style={styles.switchButtonText}>
@@ -293,6 +337,39 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 16,
     marginBottom: 16,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 16,
+    paddingRight: 8,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 14,
+    fontSize: 16,
+  },
+  eyeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  eyeText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  backButton: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  scrollContentWithBack: {
+    paddingTop: 8,
   },
   submitButton: {
     backgroundColor: '#2196f3',
