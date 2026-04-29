@@ -118,7 +118,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
       await Promise.all([
         loadPosts(1),
         loadLikedCars(1),
-        CarApiService.getUserBadges().then(setBadges).catch(() => {}),
+        CarApiService.getUserBadges().then(setBadges).catch(e => console.warn('Failed to load badges:', e)),
       ]);
       setIsLoading(false);
     };
@@ -245,9 +245,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
       </View>
 
       {/* Badges */}
-      {badges.length > 0 && (
-        <View style={[styles.badgesCard, { backgroundColor: cardBg }]}>
-          <Text style={[styles.badgesTitle, { color: textColor }]}>Badges</Text>
+      <View style={[styles.badgesCard, { backgroundColor: cardBg }]}>
+        <Text style={[styles.badgesTitle, { color: textColor }]}>Badges</Text>
+        {badges.length === 0 ? (
+          <Text style={[styles.badgesEmpty, { color: subtextColor }]}>No badges yet — start identifying cars!</Text>
+        ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgesRow}>
             {badges.map(badge => (
               <View key={badge.id} style={styles.badgeItem}>
@@ -279,8 +281,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
               </View>
             ))}
           </ScrollView>
-        </View>
-      )}
+        )}
+      </View>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -788,6 +790,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
     marginTop: 2,
+  },
+  badgesEmpty: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingVertical: 4,
+  },
   },
 });
 
