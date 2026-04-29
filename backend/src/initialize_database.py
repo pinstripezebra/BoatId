@@ -94,10 +94,28 @@ liked_cars_table_creation_query = """CREATE TABLE IF NOT EXISTS liked_cars (
     CONSTRAINT uq_liked_car_user UNIQUE (car_id, user_id)
     )"""
 
+car_details_table_creation_query = """CREATE TABLE IF NOT EXISTS car_details (
+    id SERIAL PRIMARY KEY,
+    make VARCHAR(100) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    car_class VARCHAR(100),
+    cylinders INTEGER,
+    displacement DOUBLE PRECISION,
+    drive VARCHAR(20),
+    fuel_type VARCHAR(20),
+    transmission VARCHAR(10),
+    city_mpg VARCHAR(50),
+    highway_mpg VARCHAR(50),
+    combination_mpg VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_car_details_make_model UNIQUE (make, model)
+    )"""
+
 # Deleting tables if they already exist (including old boat-named tables from before rename)
 engine.delete_table('liked_boats')
 engine.delete_table('boat_popularity')
 engine.delete_table('boat_identifications')
+engine.delete_table('car_details')
 engine.delete_table('liked_cars')
 engine.delete_table('car_popularity')
 engine.delete_table('refresh_tokens')
@@ -140,6 +158,7 @@ if 'id' not in users.columns:
 # Create tables
 engine.create_table(users_table_creation_query)
 engine.create_table(car_identifications_table_creation_query)
+engine.create_table(car_details_table_creation_query)
 engine.create_table(refresh_tokens_table_creation_query)
 engine.create_table(car_popularity_table_creation_query)
 engine.create_table(liked_cars_table_creation_query)
@@ -403,8 +422,83 @@ try:
 except Exception as e:
     print(f"Error populating car_popularity: {e}")
 
+# Backfill car_details for each distinct (make, model) pair in seeded car_identifications
+import requests as _requests
+
+_api_ninjas_key = os.getenv('CAR_API_KEY', '')
+_CAR_DETAILS_CACHE = os.path.join(current_file_dir, '.car_details_cache.json')
+
+def _load_car_details_cache() -> dict:
+    if os.path.exists(_CAR_DETAILS_CACHE):
+        with open(_CAR_DETAILS_CACHE, 'r') as _f:
+            return json.load(_f)
+    return {}
+
+def _save_car_details_cache(cache: dict):
+    with open(_CAR_DETAILS_CACHE, 'w') as _f:
+        json.dump(cache, _f, indent=2)
+
+_details_cache = _load_car_details_cache()
+
+distinct_pairs = (
+    sample_car_data[['make', 'model']]
+    .dropna()
+    .drop_duplicates()
+    .values.tolist()
+)
+print(f"\nBackfilling car_details for {len(distinct_pairs)} distinct make/model pairs...")
+
+_inserted = 0
+for _make, _model in distinct_pairs:
+    _key = f"{_make}|{_model}"
+    if _key in _details_cache:
+        _row = _details_cache[_key]
+    elif not _api_ninjas_key:
+        print(f"  Skipping {_make} {_model} — CAR_API_KEY not set")
+        _row = {}
+    else:
+        try:
+            _resp = _requests.get(
+                'https://api.api-ninjas.com/v1/cars',
+                params={'make': _make, 'model': _model},
+                headers={'X-Api-Key': _api_ninjas_key},
+                timeout=10,
+            )
+            _data = _resp.json() if _resp.ok else []
+            _row = _data[0] if isinstance(_data, list) and _data else {}
+            _details_cache[_key] = _row
+            _save_car_details_cache(_details_cache)
+            print(f"  {_make} {_model}: {'found' if _row else 'no data'}")
+        except Exception as _e:
+            print(f"  {_make} {_model}: API error — {_e}")
+            _row = {}
+
+    try:
+        _cursor = engine.conn.cursor()
+        _cursor.execute(
+            "INSERT INTO car_details (make, model, car_class, cylinders, displacement, drive, fuel_type, transmission, city_mpg, highway_mpg, combination_mpg)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            " ON CONFLICT (make, model) DO NOTHING",
+            (
+                str(_make), str(_model),
+                _row.get('class'), _row.get('cylinders'), _row.get('displacement'),
+                _row.get('drive'), _row.get('fuel_type'), _row.get('transmission'),
+                str(_row.get('city_mpg', '')) if _row.get('city_mpg') is not None else None,
+                str(_row.get('highway_mpg', '')) if _row.get('highway_mpg') is not None else None,
+                str(_row.get('combination_mpg', '')) if _row.get('combination_mpg') is not None else None,
+            )
+        )
+        engine.conn.commit()
+        _cursor.close()
+        _inserted += 1
+    except Exception as _e:
+        print(f"  Warning: could not insert car_details for {_make} {_model}: {_e}")
+
+print(f"car_details backfill complete: {_inserted}/{len(distinct_pairs)} rows inserted")
+
 # Testing if the tables were created and populated correctly
 print(engine.test_table('users'))
 print(engine.test_table('car_identifications'))
+print(engine.test_table('car_details'))
 print(engine.test_table('liked_cars'))
 print(engine.test_table('car_popularity'))

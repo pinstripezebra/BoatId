@@ -13,13 +13,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import type {CarCardData} from './CarCard';
-import type {CarDetails} from '../services/carApi';
+import type {CarDetails, CarStatistics} from '../services/carApi';
 
 export interface DetailCarData extends CarCardData {
   year?: string;
   confidence?: string;
   model?: string;
   identification_data?: CarDetails;
+  car_statistics?: CarStatistics;
 }
 
 interface CarDetailModalProps {
@@ -289,6 +290,30 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
                       ))}
                     </View>
                   )}
+                </>
+              )}
+
+              {/* Car Statistics */}
+              {car.car_statistics && (
+                <>
+                  <View style={[styles.divider, {backgroundColor: dividerColor}]} />
+                  <Text style={[styles.sectionTitle, {color: textColor}]}>Car Statistics</Text>
+                  {([
+                    ['Class',        car.car_statistics.car_class],
+                    ['Cylinders',    car.car_statistics.cylinders?.toString()],
+                    ['Displacement', car.car_statistics.displacement != null ? `${car.car_statistics.displacement}L` : null],
+                    ['Drive',        car.car_statistics.drive?.toUpperCase()],
+                    ['Fuel Type',    car.car_statistics.fuel_type],
+                    ['Transmission', car.car_statistics.transmission === 'a' ? 'Automatic' : car.car_statistics.transmission === 'm' ? 'Manual' : car.car_statistics.transmission],
+                    ['City MPG',     car.car_statistics.city_mpg],
+                    ['Highway MPG',  car.car_statistics.highway_mpg],
+                    ['Combined MPG', car.car_statistics.combination_mpg],
+                  ] as [string, string | null | undefined][]).map(([label, val]) => (
+                    <View key={label} style={styles.detailRow}>
+                      <Text style={[styles.label, {color: subtextColor}]}>{label}</Text>
+                      <Text style={[styles.value, {color: textColor}]}>{val ?? '—'}</Text>
+                    </View>
+                  ))}
                 </>
               )}
             </View>

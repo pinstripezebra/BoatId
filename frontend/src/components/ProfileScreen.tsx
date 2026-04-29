@@ -161,9 +161,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
   const handleGridItemPress = async (item: GridCar) => {
     if (!onCarPress) return;
     try {
-      const data = await CarApiService.getIdentifications(1, 50, { isCar: true });
-      const match = data.results.find(r => r.id.toString() === item.id);
-      const idData = match?.identification_data;
+      const data = await CarApiService.getIdentificationById(parseInt(item.id, 10)) as any;
+      const idData = data?.identification_data;
       const detail: DetailCarData = {
         id: item.id,
         name: item.name,
@@ -182,6 +181,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
           body_type: idData.body_type,
           features: idData.features,
         } : undefined,
+        car_statistics: data?.car_details ?? undefined,
       };
       onCarPress(detail);
     } catch (error) {

@@ -17,6 +17,20 @@ export interface CarDetails {
   features?: string[];
 }
 
+export interface CarStatistics {
+  make?: string;
+  model?: string;
+  car_class?: string | null;
+  cylinders?: number | null;
+  displacement?: number | null;
+  drive?: string | null;
+  fuel_type?: string | null;
+  transmission?: string | null;
+  city_mpg?: string | null;
+  highway_mpg?: string | null;
+  combination_mpg?: string | null;
+}
+
 export interface CarIdentificationResponse {
   success: boolean;
   identification_id?: number;
@@ -24,6 +38,7 @@ export interface CarIdentificationResponse {
   filename: string;
   is_car: boolean;
   car_details?: CarDetails;
+  car_statistics?: CarStatistics;
   confidence?: string;
   message?: string;
 }

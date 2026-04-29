@@ -1,13 +1,18 @@
 import boto3
 import json
 import uuid
+import logging
+import os
+import requests as _http
 from datetime import datetime
 from sqlalchemy.orm import Session
 from models.car import CarIdentification
+from models.car_details import CarDetails
 from image_identification import CarIdentificationResult
 from typing import List, Optional, Dict
-import os
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 class CarStorageService:
     def __init__(self, db_session: Session, s3_bucket: str, aws_region: str = None):
@@ -203,7 +208,8 @@ class CarStorageService:
             'filename': record.image_filename,
             'created_at': record.created_at.isoformat(),
             'identification_data': record.identification_data,
-            'is_car': record.is_car
+            'is_car': record.is_car,
+            'car_details': self._get_car_details_dict(record.make, record.model),
         }
     
     def search_cars(self, search_term: str, limit: int = 50, offset: int = 0) -> Dict:
@@ -309,11 +315,92 @@ class CarStorageService:
         try:
             self.db.commit()
             self.db.refresh(record)
+            # Fetch (or lazily populate) car_details for the updated make/model
+            make = record.make
+            model = record.model
+            car_details = self.get_or_fetch_car_details(make, model) if make and model else None
             return {
                 'id': record.id,
                 'identification_data': record.identification_data,
                 'user_modified': record.user_modified,
+                'car_details': car_details,
             }
         except Exception as e:
             self.db.rollback()
             raise RuntimeError(f"Failed to update identification: {str(e)}")
+
+    # ------------------------------------------------------------------
+    # Car Details enrichment (API-Ninjas)
+    # ------------------------------------------------------------------
+
+    def _get_car_details_dict(self, make: Optional[str], model: Optional[str]) -> Optional[dict]:
+        """Return car_details dict for a make/model pair without fetching from API."""
+        if not make or not model:
+            return None
+        record = (
+            self.db.query(CarDetails)
+            .filter(CarDetails.make.ilike(make), CarDetails.model.ilike(model))
+            .first()
+        )
+        return record.to_dict() if record else None
+
+    def get_or_fetch_car_details(self, make: str, model: str) -> Optional[dict]:
+        """
+        Return car statistics for the given make/model.
+        Checks the car_details table first; if absent, calls API-Ninjas and
+        persists the result (even when the API returns no data, a row is stored
+        with NULL fields to prevent repeat fetches).
+        """
+        if not make or not model:
+            return None
+
+        # 1. DB cache hit
+        existing = (
+            self.db.query(CarDetails)
+            .filter(CarDetails.make.ilike(make), CarDetails.model.ilike(model))
+            .first()
+        )
+        if existing:
+            return existing.to_dict()
+
+        # 2. Fetch from API-Ninjas
+        api_key = os.getenv('CAR_API_KEY', '')
+        row_data: dict = {}
+        if api_key:
+            try:
+                resp = _http.get(
+                    'https://api.api-ninjas.com/v1/cars',
+                    params={'make': make, 'model': model},
+                    headers={'X-Api-Key': api_key},
+                    timeout=10,
+                )
+                data = resp.json() if resp.ok else []
+                row_data = data[0] if isinstance(data, list) and data else {}
+            except Exception as exc:
+                logger.warning("API-Ninjas request failed for %s %s: %s", make, model, exc)
+        else:
+            logger.warning("CAR_API_KEY not configured — skipping car details fetch")
+
+        # 3. Persist (nulls are fine — prevents future re-fetches)
+        try:
+            record = CarDetails(
+                make=make,
+                model=model,
+                car_class=row_data.get('class'),
+                cylinders=row_data.get('cylinders'),
+                displacement=row_data.get('displacement'),
+                drive=row_data.get('drive'),
+                fuel_type=row_data.get('fuel_type'),
+                transmission=row_data.get('transmission'),
+                city_mpg=str(row_data['city_mpg']) if row_data.get('city_mpg') is not None else None,
+                highway_mpg=str(row_data['highway_mpg']) if row_data.get('highway_mpg') is not None else None,
+                combination_mpg=str(row_data['combination_mpg']) if row_data.get('combination_mpg') is not None else None,
+            )
+            self.db.add(record)
+            self.db.commit()
+            self.db.refresh(record)
+            return record.to_dict()
+        except Exception as exc:
+            self.db.rollback()
+            logger.warning("Could not persist car_details for %s %s: %s", make, model, exc)
+            return row_data or None
