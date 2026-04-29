@@ -294,11 +294,11 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
               )}
 
               {/* Car Statistics */}
-              {car.car_statistics && (
-                <>
-                  <View style={[styles.divider, {backgroundColor: dividerColor}]} />
-                  <Text style={[styles.sectionTitle, {color: textColor}]}>Car Statistics</Text>
-                  {([
+              <>
+                <View style={[styles.divider, {backgroundColor: dividerColor}]} />
+                <Text style={[styles.sectionTitle, {color: textColor}]}>Car Statistics</Text>
+                {car.car_statistics ? (
+                  ([
                     ['Class',        car.car_statistics.car_class],
                     ['Cylinders',    car.car_statistics.cylinders?.toString()],
                     ['Displacement', car.car_statistics.displacement != null ? `${car.car_statistics.displacement}L` : null],
@@ -313,9 +313,11 @@ const CarDetailModal: React.FC<CarDetailModalProps> = ({visible, car, onClose, i
                       <Text style={[styles.label, {color: subtextColor}]}>{label}</Text>
                       <Text style={[styles.value, {color: textColor}]}>{val ?? '—'}</Text>
                     </View>
-                  ))}
-                </>
-              )}
+                  ))
+                ) : (
+                  <Text style={[styles.value, {color: subtextColor}]}>None</Text>
+                )}
+              </>
             </View>
           </ScrollView>
 

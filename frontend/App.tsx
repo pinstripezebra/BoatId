@@ -197,6 +197,19 @@ function App(): React.JSX.Element {
 
   const isCarLiked = useCallback((id: string) => likedCarIds.has(id), [likedCarIds]);
 
+  const handleCarPress = useCallback(async (car: DetailCarData) => {
+    if (car.car_statistics || !car.id) {
+      setSelectedCar(car);
+      return;
+    }
+    try {
+      const data = await CarApiService.getIdentificationById(parseInt(car.id, 10)) as any;
+      setSelectedCar({ ...car, car_statistics: data?.car_details ?? undefined });
+    } catch {
+      setSelectedCar(car);
+    }
+  }, []);
+
   // Prefetch and cache after login
   useEffect(() => {
     if (isLoggedIn) {
@@ -349,19 +362,6 @@ function App(): React.JSX.Element {
     setProfileRefreshKey(k => k + 1);
     loadUserCars();
   };
-
-  const handleCarPress = useCallback(async (car: DetailCarData) => {
-    if (car.car_statistics || !car.id) {
-      setSelectedCar(car);
-      return;
-    }
-    try {
-      const data = await CarApiService.getIdentificationById(parseInt(car.id, 10)) as any;
-      setSelectedCar({ ...car, car_statistics: data?.car_details ?? undefined });
-    } catch {
-      setSelectedCar(car);
-    }
-  }, []);
 
   return (
     <SafeAreaView style={backgroundStyle}>
