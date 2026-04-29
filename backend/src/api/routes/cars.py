@@ -408,15 +408,20 @@ async def delete_car_identification(
     if car.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this identification")
 
-    # Delete image from S3 if present
-    if car.s3_image_key:
-        try:
-            s3_client.delete_object(Bucket=aws_bucket_name or "carid-images", Key=car.s3_image_key)
-        except Exception as e:
-            print(f"Warning: failed to delete S3 object {car.s3_image_key}: {e}")
+    s3_key = car.s3_image_key  # capture before deletion
+
+    # Delete dependent liked_cars rows first to satisfy FK constraint
+    db.query(LikedCar).filter(LikedCar.car_id == identification_id).delete()
 
     db.delete(car)
     db.commit()
+
+    # Delete image from S3 only after DB commit succeeds
+    if s3_key:
+        try:
+            s3_client.delete_object(Bucket=aws_bucket_name or "carid-images", Key=s3_key)
+        except Exception as e:
+            print(f"Warning: failed to delete S3 object {s3_key}: {e}")
 
 @router.get("/search")
 async def search_cars(
