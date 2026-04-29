@@ -796,7 +796,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     paddingVertical: 4,
   },
-  },
 });
 
 export default ProfileScreen;
