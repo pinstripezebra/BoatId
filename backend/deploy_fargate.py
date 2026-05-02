@@ -291,7 +291,7 @@ def ensure_security_group(ec2, vpc_id):
 
 
 def ensure_alb_security_group(ec2, vpc_id):
-    """Create or find a security group for the ALB that allows inbound on port 80."""
+    """Create or find a security group for the ALB that allows inbound on ports 80 and 443."""
     sg_name = f"{SERVICE_NAME}-alb-sg"
     try:
         resp = ec2.describe_security_groups(
@@ -303,6 +303,28 @@ def ensure_alb_security_group(ec2, vpc_id):
         if resp["SecurityGroups"]:
             sg_id = resp["SecurityGroups"][0]["GroupId"]
             logger.info(f"Using existing ALB security group: {sg_id}")
+            # Ensure port 443 is open (may be missing if SG was created before HTTPS was added)
+            existing_ports = {
+                r["FromPort"]
+                for perm in resp["SecurityGroups"][0].get("IpPermissions", [])
+                for r in [perm]
+                if perm.get("IpProtocol") == "tcp"
+            }
+            if 443 not in existing_ports:
+                try:
+                    ec2.authorize_security_group_ingress(
+                        GroupId=sg_id,
+                        IpPermissions=[{
+                            "IpProtocol": "tcp",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "HTTPS access"}],
+                        }],
+                    )
+                    logger.info(f"Added port 443 inbound rule to ALB security group {sg_id}")
+                except ClientError as e:
+                    if "InvalidPermission.Duplicate" not in str(e):
+                        raise
             return sg_id
     except ClientError:
         pass
