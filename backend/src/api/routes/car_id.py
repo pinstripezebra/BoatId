@@ -11,6 +11,7 @@ import boto3
 from PIL import Image as _PIL_Image, ImageOps as _PIL_ImageOps
 from datetime import datetime, timezone
 
+from models.badge import Badge
 from models.car import CarIdentification
 from models.user import User
 from models.user_camera_stats import UserCameraStats
@@ -210,9 +211,29 @@ async def identify_car_from_image(
         db.commit()
 
         # Award any newly-crossed badges (fires only when a car was successfully identified)
+        newly_awarded_badges: list[dict] = []
         if result.is_car and current_user:
             try:
-                check_and_award_badges(db, current_user.id)
+                awarded_ids = check_and_award_badges(db, current_user.id)
+                if awarded_ids:
+                    awarded_badge_rows = db.query(Badge).filter(Badge.id.in_(awarded_ids)).all()
+                    for b in awarded_badge_rows:
+                        badge_image_url = None
+                        if b.s3_key:
+                            try:
+                                badge_image_url = s3_client.generate_presigned_url(
+                                    'get_object',
+                                    Params={'Bucket': aws_bucket_name or 'carid-images', 'Key': b.s3_key},
+                                    ExpiresIn=3600 * 24 * 7,
+                                )
+                            except Exception:
+                                pass
+                        newly_awarded_badges.append({
+                            'id': b.id,
+                            'name': b.name,
+                            'required_images': b.required_images,
+                            'image_url': badge_image_url,
+                        })
             except Exception as _badge_exc:
                 # Badge award failure must never break the identification response
                 import logging as _logging
@@ -225,6 +246,7 @@ async def identify_car_from_image(
             "image_url": image_url,
             "filename": image.filename,
             "is_car": result.is_car,
+            "newly_awarded_badges": newly_awarded_badges,
         }
 
         if result.is_car:

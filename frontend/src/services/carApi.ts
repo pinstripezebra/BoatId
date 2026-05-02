@@ -42,6 +42,7 @@ export interface CarIdentificationResponse {
   car_statistics?: CarStatistics;
   confidence?: string;
   message?: string;
+  newly_awarded_badges?: NewlyAwardedBadge[];
 }
 
 export interface CarIdentificationListResponse {
@@ -155,6 +156,13 @@ export interface UserLikedCarsResponse {
   page: number;
   per_page: number;
   total_pages: number;
+}
+
+export interface NewlyAwardedBadge {
+  id: number;
+  name: string;
+  required_images: number;
+  image_url: string | null;
 }
 
 export interface Badge {

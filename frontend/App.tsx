@@ -40,6 +40,8 @@ import CategoryScreen from './src/components/CategoryScreen';
 import type { CategoryType } from './src/components/CategoryScreen';
 import WelcomeModal from './src/components/WelcomeModal';
 import UpgradeAccountScreen from './src/components/UpgradeAccountScreen';
+import BadgeEarnedModal from './src/components/BadgeEarnedModal';
+import type { NewlyAwardedBadge } from './src/services/carApi';
 import {useCameraIdentification} from './src/hooks/useCameraIdentification';
 import { AuthService } from './src/services/authService';
 import { CarApiService } from './src/services';
@@ -67,6 +69,7 @@ function App(): React.JSX.Element {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showUpgradeScreen, setShowUpgradeScreen] = useState(false);
+  const [earnedBadges, setEarnedBadges] = useState<NewlyAwardedBadge[]>([]);
   // Guest auth flow state: which login sub-screen to show when a guest taps profile/auth
   const [guestAuthView, setGuestAuthView] = useState<'login' | 'verify' | 'forgot' | 'reset' | null>(null);
 
@@ -352,6 +355,9 @@ function App(): React.JSX.Element {
           car: carData,
           identificationId: result.identification_id || 0,
         });
+        if (result.newly_awarded_badges && result.newly_awarded_badges.length > 0) {
+          setEarnedBadges(result.newly_awarded_badges);
+        }
       } else {
         Alert.alert(
           'No Car Detected',
@@ -553,6 +559,13 @@ function App(): React.JSX.Element {
         onClose={handleIdentificationModalClose}
         editable
       />
+
+      {earnedBadges.length > 0 && (
+        <BadgeEarnedModal
+          badges={earnedBadges}
+          onClose={() => setEarnedBadges([])}
+        />
+      )}
 
       <WelcomeModal
         visible={showWelcomeModal && !isLoggedIn}
