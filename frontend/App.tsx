@@ -224,7 +224,7 @@ function App(): React.JSX.Element {
     }
     try {
       const data = await CarApiService.getIdentificationById(parseInt(car.id, 10)) as any;
-      setSelectedCar({ ...car, car_statistics: data?.car_details ?? undefined });
+      setSelectedCar({ ...car, car_statistics: data?.car_details ?? undefined, identification_data: data?.identification_data ?? car.identification_data });
     } catch {
       setSelectedCar(car);
     }
@@ -330,7 +330,7 @@ function App(): React.JSX.Element {
       return;
     }
     try {
-      const result = await captureAndIdentify(['make', 'model', 'description', 'car_type', 'year', 'body_type', 'features']);
+      const result = await captureAndIdentify(['make', 'model', 'description', 'car_type', 'year', 'body_type', 'features', 'car_rarity']);
       
       if (result.is_car && result.car_details) {
         const details = result.car_details;

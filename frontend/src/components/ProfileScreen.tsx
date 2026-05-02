@@ -186,6 +186,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
           car_type: idData.car_type,
           body_type: idData.body_type,
           features: idData.features,
+          car_rarity: idData.car_rarity,
         } : undefined,
         car_statistics: data?.car_details ?? undefined,
       };
@@ -247,32 +248,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onCarPress, onS
       {/* Badges */}
       <View style={[styles.badgesCard, { backgroundColor: cardBg }]}>
         <Text style={[styles.badgesTitle, { color: textColor }]}>Badges</Text>
-        {badges.length === 0 ? (
+        {badges.filter(b => b.earned).length === 0 ? (
           <Text style={[styles.badgesEmpty, { color: subtextColor }]}>No badges yet — start identifying cars!</Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgesRow}>
-            {badges.map(badge => (
+            {badges.filter(b => b.earned).map(badge => (
               <View key={badge.id} style={styles.badgeItem}>
-                <View style={[
-                  styles.badgeImageWrap,
-                  !badge.earned && styles.badgeImageWrapLocked,
-                ]}>
+                <View style={styles.badgeImageWrap}>
                   {badge.image_url ? (
                     <CachedImage
                       source={{ uri: badge.image_url }}
-                      style={[styles.badgeImage, !badge.earned && styles.badgeImageGray]}
+                      style={styles.badgeImage}
                       resizeMode="contain"
                     />
                   ) : (
                     <Text style={styles.badgeFallback}>⭐</Text>
                   )}
-                  {!badge.earned && (
-                    <View style={styles.badgeLockOverlay}>
-                      <Text style={styles.badgeLockIcon}>🔒</Text>
-                    </View>
-                  )}
                 </View>
-                <Text style={[styles.badgeName, { color: badge.earned ? textColor : subtextColor }]} numberOfLines={1}>
+                <Text style={[styles.badgeName, { color: textColor }]} numberOfLines={1}>
                   {badge.name}
                 </Text>
                 <Text style={[styles.badgeReq, { color: subtextColor }]}>

@@ -394,9 +394,9 @@ class CarStorageService:
                 drive=row_data.get('drive'),
                 fuel_type=row_data.get('fuel_type'),
                 transmission=row_data.get('transmission'),
-                city_mpg=str(row_data['city_mpg']) if row_data.get('city_mpg') is not None else None,
-                highway_mpg=str(row_data['highway_mpg']) if row_data.get('highway_mpg') is not None else None,
-                combination_mpg=str(row_data['combination_mpg']) if row_data.get('combination_mpg') is not None else None,
+                city_mpg=str(row_data['city_mpg']) if isinstance(row_data.get('city_mpg'), (int, float)) else None,
+                highway_mpg=str(row_data['highway_mpg']) if isinstance(row_data.get('highway_mpg'), (int, float)) else None,
+                combination_mpg=str(row_data['combination_mpg']) if isinstance(row_data.get('combination_mpg'), (int, float)) else None,
             )
             self.db.add(record)
             self.db.commit()

@@ -55,7 +55,7 @@ class AnthropicCarIdentifier:
             'length': 'estimated length in feet',
             'car_type': 'type (sedan, SUV, truck, coupe, convertible, hatchback, etc.)',
             'body_type': 'body style (coupe, sedan, hatchback, wagon, etc.)',
-            'features': 'notable features as an array',
+            'features': 'notable visible features as an array — include things like body modifications, trim level indicators, roof type, spoilers, wheel style, and exterior design elements; do NOT include license plates, registration stickers, or any other personally identifying information',
             'car_rarity': 'rarity tier of this car model — exactly one of: common|uncommon|rare|epic|legendary. common=everyday mass-market cars (e.g. Toyota Corolla), uncommon=less common but not rare, rare=limited production or older classics, epic=exotic or high-performance sports cars, legendary=ultra-rare supercars or one-of-a-kind vehicles'
         }
         
@@ -86,6 +86,7 @@ class AnthropicCarIdentifier:
         - Be specific but concise
         - Confidence should reflect your certainty about the car identification
         - For features, include notable equipment, design elements, or modifications
+        - Do NOT include license plates, registration stickers, VINs, or any other personally identifying information in any field
         
         Respond only with valid JSON.
         """
