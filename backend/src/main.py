@@ -27,7 +27,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS – restrict to known origins in production
-allowed_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+allowed_origins = os.getenv("CORS_ORIGINS", "https://api.boatid.org").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in allowed_origins],

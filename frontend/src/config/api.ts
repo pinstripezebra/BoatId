@@ -1,1 +1,1 @@
-export const API_BASE_URL = 'http://carid-backend-alb-1161989058.us-west-2.elb.amazonaws.com';
+export const API_BASE_URL = 'https://api.boatid.org';

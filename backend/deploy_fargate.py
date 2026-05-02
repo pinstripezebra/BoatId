@@ -309,19 +309,27 @@ def ensure_alb_security_group(ec2, vpc_id):
 
     resp = ec2.create_security_group(
         GroupName=sg_name,
-        Description="CarId ALB - allows HTTP traffic",
+        Description="CarId ALB - allows HTTP and HTTPS traffic",
         VpcId=vpc_id,
     )
     sg_id = resp["GroupId"]
 
     ec2.authorize_security_group_ingress(
         GroupId=sg_id,
-        IpPermissions=[{
-            "IpProtocol": "tcp",
-            "FromPort": 80,
-            "ToPort": 80,
-            "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "HTTP access"}],
-        }],
+        IpPermissions=[
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 80,
+                "ToPort": 80,
+                "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "HTTP redirect"}],
+            },
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 443,
+                "ToPort": 443,
+                "IpRanges": [{"CidrIp": "0.0.0.0/0", "Description": "HTTPS access"}],
+            },
+        ],
     )
     logger.info(f"Created ALB security group: {sg_id}")
     return sg_id
@@ -418,26 +426,56 @@ def ensure_target_group(elbv2, vpc_id):
     return tg_arn
 
 
-def ensure_alb_listener(elbv2, alb_arn, tg_arn):
-    """Create HTTP listener on port 80 if it doesn't exist."""
-    resp = elbv2.describe_listeners(LoadBalancerArn=alb_arn)
-    for listener in resp.get("Listeners", []):
-        if listener["Port"] == 80:
-            logger.info("ALB listener on port 80 already exists")
-            return listener["ListenerArn"]
+def ensure_alb_listeners(elbv2, alb_arn, tg_arn, certificate_arn=None):
+    """Ensure HTTP:80 (redirect to HTTPS) and HTTPS:443 listeners exist."""
+    existing = {
+        l["Port"]: l
+        for l in elbv2.describe_listeners(LoadBalancerArn=alb_arn).get("Listeners", [])
+    }
 
-    resp = elbv2.create_listener(
-        LoadBalancerArn=alb_arn,
-        Protocol="HTTP",
-        Port=80,
-        DefaultActions=[{
-            "Type": "forward",
-            "TargetGroupArn": tg_arn,
-        }],
-    )
-    listener_arn = resp["Listeners"][0]["ListenerArn"]
-    logger.info("Created ALB listener on port 80")
-    return listener_arn
+    # HTTP:80 — redirect to HTTPS if cert available, otherwise forward
+    if 80 not in existing:
+        http_action = (
+            [{"Type": "redirect", "RedirectConfig": {
+                "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301",
+            }}]
+            if certificate_arn
+            else [{"Type": "forward", "TargetGroupArn": tg_arn}]
+        )
+        elbv2.create_listener(
+            LoadBalancerArn=alb_arn,
+            Protocol="HTTP",
+            Port=80,
+            DefaultActions=http_action,
+        )
+        logger.info("Created HTTP:80 listener" + (" (redirect to HTTPS)" if certificate_arn else " (forward)"))
+    elif certificate_arn:
+        listener = existing[80]
+        if listener.get("DefaultActions", [{}])[0].get("Type") != "redirect":
+            elbv2.modify_listener(
+                ListenerArn=listener["ListenerArn"],
+                DefaultActions=[{"Type": "redirect", "RedirectConfig": {
+                    "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301",
+                }}],
+            )
+            logger.info("Updated HTTP:80 listener to redirect to HTTPS")
+        else:
+            logger.info("HTTP:80 redirect listener already exists")
+
+    # HTTPS:443 — only if cert provided
+    if certificate_arn:
+        if 443 not in existing:
+            elbv2.create_listener(
+                LoadBalancerArn=alb_arn,
+                Protocol="HTTPS",
+                Port=443,
+                SslPolicy="ELBSecurityPolicy-TLS13-1-2-2021-06",
+                Certificates=[{"CertificateArn": certificate_arn}],
+                DefaultActions=[{"Type": "forward", "TargetGroupArn": tg_arn}],
+            )
+            logger.info("Created HTTPS:443 listener")
+        else:
+            logger.info("HTTPS:443 listener already exists")
 
 
 def create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id, tg_arn=None):
@@ -501,8 +539,9 @@ def wait_for_service(ecs, cluster_name, alb_dns=None):
         if running >= desired and desired > 0:
             if alb_dns:
                 print(f"\n🎉 Deployed successfully!")
-                print(f"🌐 ALB URL:  http://{alb_dns}")
-                print(f"🔗 Health:   http://{alb_dns}/health")
+                print(f"🌐 ALB URL:  https://api.boatid.org")
+                print(f"🔗 Health:   https://api.boatid.org/health")
+                print(f"   (ALB DNS: {alb_dns})")
                 return
 
             # Fallback: get task public IP
@@ -591,7 +630,12 @@ def deploy():
     ensure_fargate_sg_allows_alb(ec2, sg_id, alb_sg_id)
     alb_arn, alb_dns = ensure_alb(elbv2, vpc_id, subnet_ids, alb_sg_id)
     tg_arn = ensure_target_group(elbv2, vpc_id)
-    ensure_alb_listener(elbv2, alb_arn, tg_arn)
+    certificate_arn = env_vars.get("ACM_CERTIFICATE_ARN") or os.getenv("ACM_CERTIFICATE_ARN")
+    if certificate_arn:
+        logger.info(f"Using ACM certificate: {certificate_arn}")
+    else:
+        logger.warning("ACM_CERTIFICATE_ARN not set — deploying HTTP only. Set this in .env to enable HTTPS.")
+    ensure_alb_listeners(elbv2, alb_arn, tg_arn, certificate_arn)
 
     # Step 7: ECS cluster
     print("🏗️  Ensuring ECS cluster...")
