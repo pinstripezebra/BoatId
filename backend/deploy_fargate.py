@@ -545,6 +545,40 @@ def create_or_update_service(ecs, cluster_name, task_def_arn, subnet_ids, sg_id,
     ecs.create_service(**service_kwargs)
 
 
+def ensure_autoscaling(cluster_name):
+    """Register ECS service with Application Auto Scaling and attach a CPU target tracking policy."""
+    aas = boto3.client("application-autoscaling", region_name=REGION)
+    resource_id = f"service/{cluster_name}/{SERVICE_NAME}"
+
+    # Register scalable target: min 1 task, max 5 tasks (cost control)
+    aas.register_scalable_target(
+        ServiceNamespace="ecs",
+        ResourceId=resource_id,
+        ScalableDimension="ecs:service:DesiredCount",
+        MinCapacity=1,
+        MaxCapacity=5,
+    )
+    logger.info("Registered ECS scalable target (min=1, max=5 tasks)")
+
+    # Target tracking: scale out when average CPU exceeds 60%
+    aas.put_scaling_policy(
+        PolicyName=f"{SERVICE_NAME}-cpu-tracking",
+        ServiceNamespace="ecs",
+        ResourceId=resource_id,
+        ScalableDimension="ecs:service:DesiredCount",
+        PolicyType="TargetTrackingScaling",
+        TargetTrackingScalingPolicyConfiguration={
+            "TargetValue": 60.0,
+            "PredefinedMetricSpecification": {
+                "PredefinedMetricType": "ECSServiceAverageCPUUtilization",
+            },
+            "ScaleOutCooldown": 60,   # seconds before scaling out again
+            "ScaleInCooldown": 180,   # seconds before scaling in (conservative to avoid flapping)
+        },
+    )
+    logger.info("Applied CPU target tracking policy (target=60%, max=5 tasks)")
+
+
 def wait_for_service(ecs, cluster_name, alb_dns=None):
     """Wait for service to stabilize."""
     logger.info("Waiting for service to stabilize...")
@@ -669,6 +703,10 @@ def deploy():
 
     # Step 9: Wait
     wait_for_service(ecs, cluster_name, alb_dns)
+
+    # Step 10: Auto Scaling
+    print("📈 Configuring auto scaling...")
+    ensure_autoscaling(cluster_name)
 
 
 if __name__ == "__main__":
