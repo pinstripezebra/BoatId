@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from services.license_plate_service import LicensePlateBlurService
 from utils.rate_limit import limiter
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("carid.images")
 
 router = APIRouter()
 

@@ -9,7 +9,7 @@ import boto3
 from botocore.exceptions import ClientError
 from PIL import Image, ImageFilter
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("carid.license_plate")
 
 _DEFAULT_BLUR_RADIUS = 20
 # Rekognition inline-bytes hard limit is 5 MB

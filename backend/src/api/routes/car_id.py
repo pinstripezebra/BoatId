@@ -13,7 +13,7 @@ import boto3
 from PIL import Image as _PIL_Image, ImageOps as _PIL_ImageOps
 from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("carid.car_id")
 
 from models.badge import Badge
 from models.car import CarIdentification

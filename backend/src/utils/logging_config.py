@@ -15,10 +15,20 @@ class JSONFormatter(logging.Formatter):
     })
 
     def format(self, record: logging.LogRecord) -> str:
+        # Derive a short component name from the logger hierarchy.
+        # Loggers named "carid.<component>" → component = "<component>".
+        # Fallback: use the top-level package segment.
+        name = record.name
+        if name.startswith("carid."):
+            component = name[len("carid."):]
+        else:
+            component = name.split(".")[0]
+
         entry: dict = {
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
+            "component": component,
             "message": record.getMessage(),
         }
 

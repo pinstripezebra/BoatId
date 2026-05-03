@@ -13,7 +13,7 @@ from image_identification import CarIdentificationResult
 from typing import List, Optional, Dict
 from uuid import UUID
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("carid.storage")
 
 class CarStorageService:
     def __init__(self, db_session: Session, s3_bucket: str, aws_region: str = None):
