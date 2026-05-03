@@ -3,6 +3,7 @@ import json
 import uuid
 import logging
 import os
+import time
 import requests as _http
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -53,6 +54,7 @@ class CarStorageService:
         
         try:
             # Upload image to S3 with better error handling
+            t0 = time.perf_counter()
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=s3_key,
@@ -64,6 +66,14 @@ class CarStorageService:
                     'is_car': str(result.is_car),
                     'confidence': result.confidence or 'unknown'
                 }
+            )
+            logger.info(
+                "s3_upload",
+                extra={
+                    "s3_key": s3_key,
+                    "bytes": len(image_data),
+                    "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
+                },
             )
             
             # Prepare JSON data
@@ -370,14 +380,26 @@ class CarStorageService:
         row_data: dict = {}
         if api_key:
             try:
+                t0 = time.perf_counter()
                 resp = _http.get(
                     'https://api.api-ninjas.com/v1/cars',
                     params={'make': make, 'model': model},
                     headers={'X-Api-Key': api_key},
                     timeout=10,
                 )
+                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
                 data = resp.json() if resp.ok else []
                 row_data = data[0] if isinstance(data, list) and data else {}
+                logger.info(
+                    "api_ninjas_cars",
+                    extra={
+                        "make": make,
+                        "model": model,
+                        "status_code": resp.status_code,
+                        "result_found": bool(row_data),
+                        "duration_ms": duration_ms,
+                    },
+                )
             except Exception as exc:
                 logger.warning("API-Ninjas request failed for %s %s: %s", make, model, exc)
         else:

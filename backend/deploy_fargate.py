@@ -201,8 +201,8 @@ def ensure_iam_roles(iam, account_id):
     return exec_role_arn, task_role_arn
 
 
-def ensure_log_group(logs_client, log_group):
-    """Create CloudWatch log group if it doesn't exist."""
+def ensure_log_group(logs_client, log_group, retention_days: int = 90):
+    """Create CloudWatch log group if it doesn't exist, and enforce retention policy."""
     try:
         logs_client.create_log_group(logGroupName=log_group)
         logger.info(f"Created log group: {log_group}")
@@ -211,9 +211,12 @@ def ensure_log_group(logs_client, log_group):
             logger.info(f"Log group '{log_group}' exists")
         else:
             raise
+    # Always enforce retention (idempotent — safe to call on existing groups)
+    logs_client.put_retention_policy(logGroupName=log_group, retentionInDays=retention_days)
+    logger.info(f"Retention set to {retention_days} days on {log_group}")
 
 
-def register_task_definition(ecs, image_tag, exec_role_arn, task_role_arn, env_vars, log_group):
+def register_task_definition(ecs, image_tag, exec_role_arn, task_role_arn, env_vars, log_group, deploy_timestamp: str):
     """Register ECS task definition."""
     container_env = [{"name": k, "value": v} for k, v in env_vars.items()]
 
@@ -235,7 +238,7 @@ def register_task_definition(ecs, image_tag, exec_role_arn, task_role_arn, env_v
                 "options": {
                     "awslogs-group": log_group,
                     "awslogs-region": REGION,
-                    "awslogs-stream-prefix": "ecs",
+                    "awslogs-stream-prefix": deploy_timestamp,
                 },
             },
             "essential": True,
@@ -657,7 +660,8 @@ def deploy():
 
     repo_name = SERVICE_NAME
     cluster_name = f"{SERVICE_NAME}-cluster"
-    log_group = f"/ecs/{SERVICE_NAME}"
+    log_group = "/ecs/carid-backend"
+    deploy_timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
 
     # Step 1: ECR repo
     print("📦 Ensuring ECR repository...")
@@ -679,7 +683,8 @@ def deploy():
 
     # Step 5: Task definition
     print("📝 Registering task definition...")
-    task_def_arn = register_task_definition(ecs, image_tag, exec_role_arn, task_role_arn, env_vars, log_group)
+    task_def_arn = register_task_definition(ecs, image_tag, exec_role_arn, task_role_arn, env_vars, log_group, deploy_timestamp)
+    logger.info(f"Deploy timestamp: {deploy_timestamp} — filter log streams by this prefix in CloudWatch")
 
     # Step 6: Networking
     print("🌐 Setting up networking...")

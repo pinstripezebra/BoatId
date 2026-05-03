@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -11,20 +12,32 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _get_database_url() -> str:
+def _get_database_url() -> URL:
     secret_name = os.getenv("DB_SECRET_NAME")
     if secret_name:
         client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-west-2"))
         secret = json.loads(client.get_secret_value(SecretId=secret_name)["SecretString"])
-        return (
-            f"postgresql://{secret['username']}:{secret['password']}"
-            f"@{secret['host']}:{secret['port']}/{secret['dbname']}"
+        return URL.create(
+            drivername="postgresql",
+            username=secret["username"],
+            password=secret["password"],
+            host=secret["host"],
+            port=int(secret["port"]),
+            database=secret["dbname"],
+            query={"sslmode": "require"},
         )
     # Fallback for local development without Secrets Manager
-    return os.getenv(
-        "DATABASE_URL",
-        f"postgresql://{os.getenv('AWS_RDS_MASTER_USERNAME')}:{os.getenv('AWS_RDS_PASSWORD')}"
-        f"@{os.getenv('AWS_RDS_ENDPOINT')}:{os.getenv('AWS_RDS_PORT')}/{os.getenv('AWS_RDS_DATABASE')}"
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+    return URL.create(
+        drivername="postgresql",
+        username=os.getenv("AWS_RDS_MASTER_USERNAME"),
+        password=os.getenv("AWS_RDS_PASSWORD"),
+        host=os.getenv("AWS_RDS_ENDPOINT"),
+        port=int(os.getenv("AWS_RDS_PORT", 5432)),
+        database=os.getenv("AWS_RDS_DATABASE"),
+        query={"sslmode": "require"},
     )
 
 

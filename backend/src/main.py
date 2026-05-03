@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
 import os
 import logging
+import time
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -11,11 +13,14 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from utils.rate_limit import limiter
+from utils.logging_config import configure_logging
 from api.routes import auth, cars, users, images, car_id, car_statistics, camera_stats, badges
 
-# Security event logger
+# Configure structured JSON logging before any loggers are created
+configure_logging()
+
 security_logger = logging.getLogger("carid.security")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+access_logger = logging.getLogger("carid.access")
 
 app = FastAPI(
     title="CarId API",
@@ -39,8 +44,56 @@ app.add_middleware(
 # Global exception handler – prevent internal details from leaking
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    security_logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    security_logger.error(
+        "Unhandled exception",
+        extra={
+            "request_id": getattr(request.state, "request_id", None),
+            "method": request.method,
+            "path": request.url.path,
+        },
+        exc_info=True,
+    )
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    access_logger.info(
+        "request",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "query": str(request.url.query) or None,
+            "content_length": request.headers.get("content-length"),
+            "user_agent": request.headers.get("user-agent"),
+            "ip": request.client.host if request.client else None,
+            "authorization": "present" if request.headers.get("authorization") else "absent",
+        },
+    )
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+
+    log_level = logging.WARNING if response.status_code >= 400 else logging.INFO
+    access_logger.log(
+        log_level,
+        "response",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        },
+    )
+
+    response.headers["X-Request-Id"] = request_id
+    return response
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(car_id.router, prefix="/api/v1/cars", tags=["car-identification"])

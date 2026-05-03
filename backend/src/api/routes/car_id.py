@@ -5,11 +5,15 @@ from typing import Optional
 import asyncio
 import io
 import json
+import logging
 import os
 import re as _re
+import time
 import boto3
 from PIL import Image as _PIL_Image, ImageOps as _PIL_ImageOps
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from models.badge import Badge
 from models.car import CarIdentification
@@ -148,16 +152,44 @@ async def identify_car_from_image(
             except (json.JSONDecodeError, TypeError):
                 fields = [f.strip() for f in requested_fields.split(',') if f.strip()]
 
+        request_id = getattr(request.state, "request_id", None)
+        user_id_str = str(current_user.id) if current_user else None
+
         # Stage 1: detect car make from badge / logo (Haiku)
+        t0 = time.perf_counter()
         make_result = await identifier.find_make(image_data)
         make_hint = make_result.get("make")
         make_confidence = make_result.get("confidence")
+        logger.info(
+            "anthropic_find_make",
+            extra={
+                "request_id": request_id,
+                "user_id": user_id_str,
+                "make_hint": make_hint,
+                "make_confidence": make_confidence,
+                "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
+            },
+        )
 
         # Stage 2 + 3 in parallel: identify car (Sonnet, with make hint) & blur license plates
         blur_service = LicensePlateBlurService(aws_region=os.getenv("AWS_REGION", "us-west-2"))
+        t1 = time.perf_counter()
         result, blur_result = await asyncio.gather(
             identifier.identify_car(image_data, fields, make_hint, make_confidence),
             blur_service.blur_license_plates(image_data, image.content_type or "image/jpeg"),
+        )
+        logger.info(
+            "anthropic_identify_car",
+            extra={
+                "request_id": request_id,
+                "user_id": user_id_str,
+                "is_car": result.is_car,
+                "make": result.make,
+                "model": result.model,
+                "confidence": result.confidence,
+                "plates_detected": blur_result.plates_detected,
+                "duration_ms": round((time.perf_counter() - t1) * 1000, 1),
+            },
         )
 
         # If Rekognition missed the plate but Claude found it in features, do a targeted re-blur
@@ -236,8 +268,7 @@ async def identify_car_from_image(
                         })
             except Exception as _badge_exc:
                 # Badge award failure must never break the identification response
-                import logging as _logging
-                _logging.getLogger(__name__).warning("Badge award failed: %s", _badge_exc)
+                logger.warning("Badge award failed: %s", _badge_exc)
 
         # Build response
         response_data: dict = {
@@ -269,8 +300,7 @@ async def identify_car_from_image(
                     )
                     car_statistics = stats_service.get_or_fetch_car_details(result.make, result.model)
                 except Exception as _stats_exc:
-                    import logging as _logging
-                    _logging.getLogger(__name__).warning("Car statistics fetch failed: %s", _stats_exc)
+                    logger.warning("Car statistics fetch failed: %s", _stats_exc)
 
             response_data.update({
                 "car_details": car_data,
