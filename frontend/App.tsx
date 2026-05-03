@@ -504,17 +504,15 @@ function App(): React.JSX.Element {
             onHeaderPress={() => setCategoryScreen('nearby')}
             onViewMorePress={() => setCategoryScreen('nearby')}
           />
-
-          {userCars.length > 0 && (
-            <HorizontalCarList
-              title="Your Cars"
-              cars={userCars}
-              onCarPress={handleCarPress}
-              isLiked={isCarLiked}
-              onLikeToggle={handleLikeToggle}
-              onHeaderPress={() => setActiveTab('profile')}
-            />
-          )}
+          <HorizontalCarList
+            title="Your Cars"
+            cars={userCars}
+            onCarPress={handleCarPress}
+            isLiked={isCarLiked}
+            onLikeToggle={handleLikeToggle}
+            onHeaderPress={() => setActiveTab('profile')}
+            emptyMessage="No Data - Take pictures to populate"
+          />
 
           <View style={styles.homeFooterLinksRow}>
             <TouchableOpacity onPress={() => setShowAboutUs(true)}>

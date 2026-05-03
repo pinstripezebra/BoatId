@@ -11,6 +11,7 @@ interface HorizontalCarListProps {
   onLikeToggle?: (id: string) => void;
   onHeaderPress?: () => void;
   onViewMorePress?: () => void;
+  emptyMessage?: string;
 }
 
 const HorizontalCarList: React.FC<HorizontalCarListProps> = ({
@@ -22,6 +23,7 @@ const HorizontalCarList: React.FC<HorizontalCarListProps> = ({
   onLikeToggle,
   onHeaderPress,
   onViewMorePress,
+  emptyMessage = 'No Data',
 }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const textColor = isDarkMode ? '#ffffff' : '#333333';
@@ -46,22 +48,26 @@ const HorizontalCarList: React.FC<HorizontalCarListProps> = ({
         <Text style={[styles.title, {color: textColor}]}>{title}</Text>
         {onHeaderPress && <Text style={[styles.titleChevron, {color: subtleColor}]}>›</Text>}
       </TouchableOpacity>
-      <FlatList
-        data={displayCars}
-        keyExtractor={item => item.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-        ListFooterComponent={viewMoreCard}
-        renderItem={({item}) => (
-          <CarCard
-            {...item}
-            onPress={() => onCarPress?.(item)}
-            isLiked={isLiked?.(item.id)}
-            onLikeToggle={onLikeToggle}
-          />
-        )}
-      />
+      {displayCars.length === 0 ? (
+        <Text style={[styles.emptyText, {color: subtleColor}]}>{emptyMessage}</Text>
+      ) : (
+        <FlatList
+          data={displayCars}
+          keyExtractor={item => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.list}
+          ListFooterComponent={viewMoreCard}
+          renderItem={({item}) => (
+            <CarCard
+              {...item}
+              onPress={() => onCarPress?.(item)}
+              isLiked={isLiked?.(item.id)}
+              onLikeToggle={onLikeToggle}
+            />
+          )}
+        />
+      )}
     </View>
   );
 };
@@ -88,6 +94,11 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingRight: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
   },
   viewMoreCard: {
     width: 120,
