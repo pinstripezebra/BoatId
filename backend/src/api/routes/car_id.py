@@ -258,7 +258,25 @@ async def identify_car_from_image(
                     car_data[field_name] = value
             if result.make_source:
                 car_data["make_source"] = result.make_source
-            response_data.update({"car_details": car_data, "confidence": result.confidence})
+
+            # Fetch third-party statistics for the identified make/model
+            car_statistics = None
+            if result.make and result.model:
+                try:
+                    stats_service = CarStorageService(
+                        db_session=db,
+                        s3_bucket=aws_bucket_name or "carid-images",
+                    )
+                    car_statistics = stats_service.get_or_fetch_car_details(result.make, result.model)
+                except Exception as _stats_exc:
+                    import logging as _logging
+                    _logging.getLogger(__name__).warning("Car statistics fetch failed: %s", _stats_exc)
+
+            response_data.update({
+                "car_details": car_data,
+                "confidence": result.confidence,
+                "car_statistics": car_statistics,
+            })
         else:
             response_data.update({
                 "message": "No car detected in the image",
