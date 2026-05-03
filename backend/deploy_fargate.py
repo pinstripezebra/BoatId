@@ -68,6 +68,13 @@ def load_env_vars():
 
     env_vars["PORT"] = str(CONTAINER_PORT)
     env_vars["AWS_DEFAULT_REGION"] = REGION
+    env_vars["DB_SECRET_NAME"] = "boatid/rds"
+
+    # retrieved from Secrets Manager at runtime
+    for key in ["AWS_RDS_PASSWORD", "AWS_RDS_URL", "AWS_RDS_MASTER_USERNAME",
+                "AWS_RDS_ENDPOINT", "AWS_RDS_PORT", "AWS_RDS_DATABASE"]:
+        env_vars.pop(key, None)
+
     return env_vars
 
 

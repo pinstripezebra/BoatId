@@ -5,6 +5,8 @@ mobile-app/node_modules/
 mobile-app/bin/
 mobile-app/lib/
 .env
+backend/.env
+**/.env
 data/*
 !data/.gitkeep
 startup.txt

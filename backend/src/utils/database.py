@@ -3,15 +3,32 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 import os
+import json
+import boto3
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Get database URL from environment variables
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"postgresql://{os.getenv('AWS_RDS_MASTER_USERNAME')}:{os.getenv('AWS_RDS_PASSWORD')}@{os.getenv('AWS_RDS_ENDPOINT')}:{os.getenv('AWS_RDS_PORT')}/{os.getenv('AWS_RDS_DATABASE')}"
-)
+
+def _get_database_url() -> str:
+    secret_name = os.getenv("DB_SECRET_NAME")
+    if secret_name:
+        client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-west-2"))
+        secret = json.loads(client.get_secret_value(SecretId=secret_name)["SecretString"])
+        return (
+            f"postgresql://{secret['username']}:{secret['password']}"
+            f"@{secret['host']}:{secret['port']}/{secret['dbname']}"
+        )
+    # Fallback for local development without Secrets Manager
+    return os.getenv(
+        "DATABASE_URL",
+        f"postgresql://{os.getenv('AWS_RDS_MASTER_USERNAME')}:{os.getenv('AWS_RDS_PASSWORD')}"
+        f"@{os.getenv('AWS_RDS_ENDPOINT')}:{os.getenv('AWS_RDS_PORT')}/{os.getenv('AWS_RDS_DATABASE')}"
+    )
+
+
+DATABASE_URL = _get_database_url()
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
