@@ -6,45 +6,77 @@ from typing import Generator
 import os
 import json
 import boto3
-from botocore.exceptions import ClientError
+import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-def _get_database_url() -> URL:
+def _load_db_config() -> dict:
+    """Load DB connection config once at startup. Password is never stored — IAM token is used on AWS."""
     secret_name = os.getenv("DB_SECRET_NAME")
     if secret_name:
-        client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-west-2"))
+        region = os.getenv("AWS_REGION", "us-west-2")
+        client = boto3.client("secretsmanager", region_name=region)
         secret = json.loads(client.get_secret_value(SecretId=secret_name)["SecretString"])
-        return URL.create(
-            drivername="postgresql",
-            username=secret["username"],
-            password=secret["password"],
-            host=secret["host"],
-            port=int(secret["port"]),
-            database=secret["dbname"],
-            query={"sslmode": "require"},
-        )
-    # Fallback for local development without Secrets Manager
-    database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        return database_url
-    return URL.create(
-        drivername="postgresql",
-        username=os.getenv("AWS_RDS_MASTER_USERNAME"),
-        password=os.getenv("AWS_RDS_PASSWORD"),
-        host=os.getenv("AWS_RDS_ENDPOINT"),
-        port=int(os.getenv("AWS_RDS_PORT", 5432)),
-        database=os.getenv("AWS_RDS_DATABASE"),
-        query={"sslmode": "require"},
+        return {
+            "host": secret["host"],
+            "port": int(secret["port"]),
+            "user": secret["username"],
+            "dbname": secret["dbname"],
+            "use_iam": True,
+        }
+    # Local development: fall back to env vars with password auth
+    return {
+        "host": os.getenv("AWS_RDS_ENDPOINT"),
+        "port": int(os.getenv("AWS_RDS_PORT", 5432)),
+        "user": os.getenv("AWS_RDS_MASTER_USERNAME"),
+        "dbname": os.getenv("AWS_RDS_DATABASE"),
+        "password": os.getenv("AWS_RDS_PASSWORD"),
+        "use_iam": False,
+    }
+
+
+_DB_CONFIG = _load_db_config()
+
+
+def _create_iam_connection():
+    """
+    Create a psycopg2 connection using a fresh RDS IAM auth token.
+    Called by SQLAlchemy each time a new physical connection is needed.
+    Tokens expire after 15 min but existing pooled connections remain valid.
+    """
+    region = os.getenv("AWS_REGION", "us-west-2")
+    token = boto3.client("rds", region_name=region).generate_db_auth_token(
+        DBHostname=_DB_CONFIG["host"],
+        Port=_DB_CONFIG["port"],
+        DBUsername=_DB_CONFIG["user"],
+        Region=region,
+    )
+    return psycopg2.connect(
+        host=_DB_CONFIG["host"],
+        port=_DB_CONFIG["port"],
+        user=_DB_CONFIG["user"],
+        password=token,
+        dbname=_DB_CONFIG["dbname"],
+        sslmode="require",
     )
 
 
-DATABASE_URL = _get_database_url()
-
-# Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL)
+# On AWS (DB_SECRET_NAME set): use IAM token auth — no stored password
+# Locally: use password from env vars
+if _DB_CONFIG["use_iam"]:
+    engine = create_engine("postgresql+psycopg2://", creator=_create_iam_connection)
+else:
+    engine = create_engine(URL.create(
+        drivername="postgresql",
+        username=_DB_CONFIG["user"],
+        password=_DB_CONFIG.get("password"),
+        host=_DB_CONFIG["host"],
+        port=_DB_CONFIG["port"],
+        database=_DB_CONFIG["dbname"],
+        query={"sslmode": "require"},
+    ))
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
