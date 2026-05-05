@@ -1,14 +1,14 @@
 {
-  "name": "frontend",
-  "displayName": "frontend",
-  "extra": {
-    "eas": {
-      "projectId": "d2732bdc-08fc-4024-a74c-aacf837feeb3"
-    }
-  },
   "expo": {
+    "name": "CarID",
+    "slug": "frontend",
+    "version": "1.0.0",
     "android": {
       "package": "com.pinstripezebra.frontend"
+    },
+    "ios": {
+      "bundleIdentifier": "com.pinstripezebra.frontend",
+      "buildNumber": "1"
     },
     "extra": {
       "eas": {

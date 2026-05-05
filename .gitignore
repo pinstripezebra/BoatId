@@ -16,8 +16,14 @@ __pycache__/
 
 frontend/.bundle/
 frontend/node_modules/
-frontend/ios/
-frontend/android/
+frontend/ios/build/
+frontend/ios/Pods/
+frontend/ios/DerivedData/
+frontend/android/build/
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/app/release.keystore
+frontend/android/app/google-services.json
 frontend/__tests__/
 frontend/README.md
 start-carid.
@@ -26,3 +32,4 @@ backend/deploy.py
 # Deployment logs (may contain secrets)
 deploy.log
 backend/deploy.log
+
