@@ -2,7 +2,7 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// Load .env file from project root
+// Load .env file from project root (local development)
 def envFile = file("$rootDir/../../.env")
 def envProperties = new Properties()
 if (envFile.exists()) {
@@ -15,6 +15,11 @@ if (envFile.exists()) {
             envProperties.setProperty(key, value)
         }
     }
+}
+
+// Helper: prefer .env file value, then OS environment variable, then fallback
+def resolveEnv = { String key, String fallback = '' ->
+    envProperties.getProperty(key) ?: System.getenv(key) ?: fallback
 }
 
 /**
@@ -99,7 +104,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        manifestPlaceholders = [MAPS_API_KEY: envProperties.getProperty('MAPS_API_KEY', '')]
+        manifestPlaceholders = [MAPS_API_KEY: resolveEnv('MAPS_API_KEY')]
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared"

@@ -3,7 +3,7 @@
   "displayName": "CarID",
   "expo": {
     "name": "CarID",
-    "slug": "carid",
+    "slug": "frontend",
     "version": "1.0.0",
     "android": {
       "package": "com.pinstripezebra.carid"
@@ -16,6 +16,7 @@
       "eas": {
         "projectId": "d2732bdc-08fc-4024-a74c-aacf837feeb3"
       }
-    }
+    },
+    "owner": "pinstripezebra"
   }
 }

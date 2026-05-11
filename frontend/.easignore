@@ -1,0 +1,19 @@
+# Exclude local build artifacts
+android/build/
+android/app/build/
+android/.gradle/
+android/.idea/
+ios/build/
+ios/Pods/
+ios/DerivedData/
+
+# Exclude local asset bundles
+android/app/src/main/assets/index.android.bundle
+android/android/
+
+# Exclude test and coverage output
+coverage/
+__tests__/
+
+# Exclude large media/data files not needed for build
+data/
