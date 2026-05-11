@@ -27,3 +27,13 @@ allprojects {
         maven { url "${rootProject.projectDir}/../node_modules/@react-native-async-storage/async-storage/android/local_repo" }
     }
 }
+
+// AGP 8.7+ requires all modules (including dependencies) to declare compileSdk.
+// This enforces it for any library that omits it (e.g. expo canary packages).
+subprojects {
+    plugins.withId("com.android.library") {
+        android {
+            compileSdk rootProject.ext.compileSdkVersion
+        }
+    }
+}
