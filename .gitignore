@@ -1,3 +1,11 @@
+# Python virtualenv
+.venv/
+venv/
+
+# Android C++ build cache
+frontend/android/app/.cxx/
+frontend/android/.kotlin/
+
 implementation.md
 planning.md
 backend/venv/

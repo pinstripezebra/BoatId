@@ -18,8 +18,8 @@ if (envFile.exists()) {
 }
 
 // Helper: prefer .env file value, then OS environment variable, then empty string
-def resolveEnv(String key) {
-    return envProperties.getProperty(key) ?: System.getenv(key) ?: ''
+def resolveEnv = { String key ->
+    envProperties.getProperty(key) ?: System.getenv(key) ?: ''
 }
 
 /**
