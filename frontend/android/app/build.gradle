@@ -17,9 +17,9 @@ if (envFile.exists()) {
     }
 }
 
-// Helper: prefer .env file value, then OS environment variable, then fallback
-def resolveEnv = { String key, String fallback = '' ->
-    envProperties.getProperty(key) ?: System.getenv(key) ?: fallback
+// Helper: prefer .env file value, then OS environment variable, then empty string
+def resolveEnv(String key) {
+    return envProperties.getProperty(key) ?: System.getenv(key) ?: ''
 }
 
 /**

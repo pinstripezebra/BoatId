@@ -1,19 +1,25 @@
-# Exclude local build artifacts
+# Dependencies
+node_modules/
+
+# Android build artifacts
 android/build/
 android/app/build/
 android/.gradle/
 android/.idea/
+android/app/.cxx/
+android/.kotlin/
+
+# iOS build artifacts
 ios/build/
 ios/Pods/
 ios/DerivedData/
 
-# Exclude local asset bundles
+# Prebundled JS (EAS rebuilds this)
 android/app/src/main/assets/index.android.bundle
 android/android/
 
-# Exclude test and coverage output
+# Test and coverage output
 coverage/
-__tests__/
 
-# Exclude large media/data files not needed for build
-data/
+# Docs
+deploy_to_store.MD
