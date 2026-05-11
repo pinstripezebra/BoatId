@@ -1,13 +1,15 @@
 {
+  "name": "CarID",
+  "displayName": "CarID",
   "expo": {
     "name": "CarID",
-    "slug": "frontend",
+    "slug": "carid",
     "version": "1.0.0",
     "android": {
-      "package": "com.pinstripezebra.frontend"
+      "package": "com.pinstripezebra.carid"
     },
     "ios": {
-      "bundleIdentifier": "com.pinstripezebra.frontend",
+      "bundleIdentifier": "com.pinstripezebra.carid",
       "buildNumber": "1"
     },
     "extra": {

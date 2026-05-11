@@ -76,3 +76,5 @@ src/assets/images/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+deploy_to_store.MD
+

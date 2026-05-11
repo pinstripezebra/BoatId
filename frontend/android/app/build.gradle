@@ -92,9 +92,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.frontend"
+    namespace "com.pinstripezebra.carid"
     defaultConfig {
-        applicationId "com.pinstripezebra.frontend"
+        applicationId "com.pinstripezebra.carid"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
