@@ -106,5 +106,6 @@ def create_tables():
     from models.user_camera_stats import UserCameraStats
     from models.badge import Badge
     from models.user_badge import UserBadge
+    from models.subscription import Subscription
 
     Base.metadata.create_all(bind=engine)

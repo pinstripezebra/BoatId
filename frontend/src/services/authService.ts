@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { API_BASE_URL } from '../config/api';
+import { SubscriptionService } from './subscriptionService';
 
 const TOKEN_KEY = '@CarId:accessToken';
 const USER_KEY = '@CarId:userData';
@@ -96,6 +97,9 @@ export class AuthService {
       service: KEYCHAIN_SERVICE,
     });
 
+    // Initialize RevenueCat with the authenticated user's ID
+    await SubscriptionService.initialize(data.user_id);
+
     return data;
   }
 
@@ -148,6 +152,9 @@ export class AuthService {
     await Keychain.setGenericPassword('refreshToken', data.refresh_token, {
       service: KEYCHAIN_SERVICE,
     });
+
+    // Initialize RevenueCat with the authenticated user's ID
+    await SubscriptionService.initialize(data.user_id);
 
     return data;
   }
@@ -245,24 +252,13 @@ export class AuthService {
     await this.logout();
   }
 
-  static async upgradeAccount(): Promise<void> {
-    const url = `${API_BASE_URL}/api/v1/users/upgrade`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || 'Failed to upgrade account');
-    }
-
-    // Update local user_type
+  /**
+   * Update the locally cached user_type. Called after a successful RevenueCat
+   * purchase — the backend is updated asynchronously via the RevenueCat webhook.
+   */
+  static async setUserType(userType: string): Promise<void> {
     if (this.user) {
-      this.user = { ...this.user, user_type: 'premium' };
+      this.user = { ...this.user, user_type: userType };
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(this.user));
     }
   }

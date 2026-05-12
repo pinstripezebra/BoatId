@@ -4,3 +4,4 @@ from models.car import CarIdentification
 from models.refresh_token import RefreshToken
 from models.car_popularity import CarPopularity
 from models.liked_car import LikedCar
+from models.subscription import Subscription

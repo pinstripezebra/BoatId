@@ -287,18 +287,15 @@ async def delete_account(
         )
 
 
-@router.post("/upgrade", summary="Upgrade account to premium (placeholder)")
-async def upgrade_account(
+@router.get("/subscription", summary="Get current subscription status")
+async def get_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Upgrade the current user's account type to premium.
-    Placeholder endpoint — payment processing to be added in a future release.
-    """
-    if current_user.user_type == 'premium':
-        return {"message": "Account is already premium", "user_type": "premium"}
-
-    current_user.user_type = 'premium'
-    db.commit()
-    return {"message": "Account upgraded to premium", "user_type": "premium"}
+    """Return the current user's subscription status. Subscription upgrades are managed via RevenueCat."""
+    from models.subscription import Subscription
+    subscription = db.query(Subscription).filter(Subscription.user_id == current_user.id).first()
+    return {
+        "user_type": current_user.user_type,
+        "subscription_status": subscription.status if subscription else "inactive",
+    }
