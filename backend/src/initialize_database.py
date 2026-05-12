@@ -11,20 +11,27 @@ from botocore.exceptions import ClientError
 from passlib.context import CryptContext
 
 # Load environment variables from .env file (override=True reloads changed values)
-load_dotenv(override=True)
+# Load backend/.env explicitly — it contains the RDS master credentials needed for this admin script
+_backend_env = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+load_dotenv(_backend_env, override=True)
 
-# Get AWS RDS connection details from environment variables
+# initialize_database.py is an admin script that drops and recreates all tables.
+# It connects as the RDS master user (rootuser) which owns the tables.
+# The running application uses carid-user via IAM token auth (see utils/database.py).
 master_username = os.environ.get("AWS_RDS_MASTER_USERNAME")
-password = os.environ.get("AWS_RDS_PASSWORD")
 rds_endpoint = os.environ.get('AWS_RDS_ENDPOINT')
-rds_port = os.environ.get("AWS_RDS_PORT")
-rds_database = os.environ.get("AWS_RDS_DATABASE")
+rds_port = os.environ.get("AWS_RDS_PORT", "5432")
+rds_database = os.environ.get("AWS_RDS_DATABASE", "postgres")
+_pw = os.environ.get("AWS_RDS_PASSWORD")
 
-# Construct PostgreSQL connection URL for RDS
-URL_database = f"postgresql://{master_username}:{password}@{rds_endpoint}:{rds_port}/{rds_database}"
-
-# Initialize DatabaseHandler with the constructed URL
-engine = DatabaseHandler(URL_database)
+# Initialize DatabaseHandler with explicit kwargs — avoids URL encoding issues with special chars in password
+engine = DatabaseHandler(
+    host=rds_endpoint,
+    port=rds_port,
+    user=master_username,
+    password=_pw,
+    dbname=rds_database,
+)
 
 # loading csv files into pandas dataframes
 # Get the project root by going up from this file's location

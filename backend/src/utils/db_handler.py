@@ -10,10 +10,23 @@ load_dotenv()
 class DatabaseHandler:
     """Class to handle PostgreSQL database connection and operations"""
 
-    def __init__(self, db_url):
-
-        """Initialize the database connection."""
-        self.conn = psycopg2.connect(db_url, sslmode='require')
+    def __init__(self, db_url=None, *, host=None, port=None, user=None, password=None, dbname=None):
+        """Initialize the database connection.
+        
+        Pass either a db_url string OR explicit host/port/user/password/dbname kwargs.
+        Keyword args are preferred — they avoid URL-encoding issues with special characters.
+        """
+        if host is not None:
+            self.conn = psycopg2.connect(
+                host=host,
+                port=int(port or 5432),
+                user=user,
+                password=password,
+                dbname=dbname,
+                sslmode='require',
+            )
+        else:
+            self.conn = psycopg2.connect(db_url, sslmode='require')
         self.conn.autocommit = True  # Enable autocommit mode
 
     def close(self):

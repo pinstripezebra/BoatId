@@ -26,14 +26,13 @@ def _load_db_config() -> dict:
             "dbname": secret["dbname"],
             "use_iam": True,
         }
-    # Local development: fall back to env vars with password auth
+    # Local development: carid-user uses IAM auth — generate a token with explicit credentials
     return {
         "host": os.getenv("AWS_RDS_ENDPOINT"),
         "port": int(os.getenv("AWS_RDS_PORT", 5432)),
-        "user": os.getenv("AWS_RDS_MASTER_USERNAME"),
-        "dbname": os.getenv("AWS_RDS_DATABASE"),
-        "password": os.getenv("AWS_RDS_PASSWORD"),
-        "use_iam": False,
+        "user": os.getenv("IAM_USERNAME"),
+        "dbname": os.getenv("AWS_RDS_DATABASE", "postgres"),
+        "use_iam": True,
     }
 
 
@@ -47,7 +46,13 @@ def _create_iam_connection():
     Tokens expire after 15 min but existing pooled connections remain valid.
     """
     region = os.getenv("AWS_REGION", "us-west-2")
-    token = boto3.client("rds", region_name=region).generate_db_auth_token(
+    rds_client = boto3.client(
+        "rds",
+        region_name=region,
+        aws_access_key_id=os.getenv("ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("ACCESS_KEY_SECRET"),
+    )
+    token = rds_client.generate_db_auth_token(
         DBHostname=_DB_CONFIG["host"],
         Port=_DB_CONFIG["port"],
         DBUsername=_DB_CONFIG["user"],

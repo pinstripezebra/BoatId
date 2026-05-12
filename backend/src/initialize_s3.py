@@ -9,8 +9,13 @@ import glob
 # Load environment variables
 load_dotenv()
 
-# Initialize S3 client
-s3 = boto3.client('s3')
+# Initialize S3 client using IAM credentials from environment
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('ACCESS_KEY_SECRET'),
+    region_name=os.getenv('AWS_REGION', 'us-west-2'),
+)
 
 # Get AWS configuration from environment variables
 aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
