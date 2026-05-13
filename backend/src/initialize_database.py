@@ -76,6 +76,7 @@ car_identifications_table_creation_query = """CREATE TABLE IF NOT EXISTS car_ide
     car_type VARCHAR(50),
     year_estimate VARCHAR(20),
     car_rarity VARCHAR(20),
+    user_modified BOOLEAN NOT NULL DEFAULT false,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
