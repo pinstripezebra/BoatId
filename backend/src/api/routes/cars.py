@@ -529,7 +529,7 @@ async def get_nearby_cars(
     request: Request,
     latitude: float = Query(..., description="Center latitude"),
     longitude: float = Query(..., description="Center longitude"),
-    radius_km: float = Query(50, description="Search radius in kilometers"),
+    radius_km: float = Query(25, ge=0.1, le=100, description="Search radius in kilometers (max 100)"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=50, description="Items per page"),
     db: Session = Depends(get_db)
@@ -541,18 +541,26 @@ async def get_nearby_cars(
     lat_delta = radius_km / 111.0
     lng_delta = radius_km / (111.0 * max(abs(math.cos(math.radians(latitude))), 0.01))
 
-    base_query = db.query(CarIdentification).filter(
-        and_(
-            CarIdentification.is_car == True,
-            CarIdentification.latitude.isnot(None),
-            CarIdentification.longitude.isnot(None),
-            CarIdentification.latitude.between(latitude - lat_delta, latitude + lat_delta),
-            CarIdentification.longitude.between(longitude - lng_delta, longitude + lng_delta),
-        )
-    )
-    total = base_query.count()
     offset = (page - 1) * per_page
-    results = base_query.order_by(CarIdentification.created_at.desc()).offset(offset).limit(per_page).all()
+    # Fetch one extra row to detect a next page without an expensive COUNT(*) full scan
+    results = (
+        db.query(CarIdentification)
+        .filter(
+            and_(
+                CarIdentification.is_car == True,
+                CarIdentification.latitude.isnot(None),
+                CarIdentification.longitude.isnot(None),
+                CarIdentification.latitude.between(latitude - lat_delta, latitude + lat_delta),
+                CarIdentification.longitude.between(longitude - lng_delta, longitude + lng_delta),
+            )
+        )
+        .order_by(CarIdentification.created_at.desc())
+        .offset(offset)
+        .limit(per_page + 1)
+        .all()
+    )
+    has_more = len(results) > per_page
+    results = results[:per_page]
     
     storage_service = CarStorageService(
         db_session=db,
@@ -590,8 +598,7 @@ async def get_nearby_cars(
         "count": len(cars),
         "page": page,
         "per_page": per_page,
-        "total_count": total,
-        "total_pages": max(1, (total + per_page - 1) // per_page),
+        "has_more": has_more,
         "center": {"latitude": latitude, "longitude": longitude},
         "radius_km": radius_km
     }
