@@ -36,24 +36,92 @@ class CarStorageService:
             self.bucket = s3_bucket
     
     async def store_identification_result(
-        self, 
+        self,
         image_filename: str,
         image_data: bytes,
         result: CarIdentificationResult,
         user_id: Optional[UUID] = None,
         latitude: Optional[float] = None,
-        longitude: Optional[float] = None
+        longitude: Optional[float] = None,
     ) -> int:
-        """Store image in S3 and identification data in RDS"""
-
-        # Generate unique S3 key
+        """Store image in S3 and identification data in RDS (thin wrapper)."""
         timestamp = datetime.utcnow().strftime("%Y/%m/%d")
         unique_id = str(uuid.uuid4())
         file_extension = image_filename.split('.')[-1].lower()
         s3_key = f"car-images/{timestamp}/{unique_id}.{file_extension}"
-        
+
+        identification_id = self.insert_identification_record(
+            s3_key=s3_key,
+            image_filename=image_filename,
+            result=result,
+            user_id=user_id,
+            latitude=latitude,
+            longitude=longitude,
+        )
+        self.upload_image_to_s3(
+            s3_key=s3_key,
+            image_data=image_data,
+            image_filename=image_filename,
+            result=result,
+        )
+        return identification_id
+
+    def insert_identification_record(
+        self,
+        s3_key: str,
+        image_filename: str,
+        result: CarIdentificationResult,
+        user_id: Optional[UUID] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+    ) -> int:
+        """Insert identification metadata into the DB only (no S3). Returns the new record id."""
+        identification_json = {
+            'is_car': result.is_car,
+            'make': result.make,
+            'model': result.model,
+            'description': result.description,
+            'year': result.year,
+            'length': result.length,
+            'car_type': result.car_type,
+            'confidence': result.confidence,
+            'body_type': result.body_type,
+            'features': result.features or [],
+            'car_rarity': result.car_rarity,
+        }
+        db_record = CarIdentification(
+            user_id=user_id,
+            image_filename=image_filename,
+            s3_image_key=s3_key,
+            is_car=result.is_car,
+            confidence=result.confidence,
+            identification_data=identification_json,
+            make=result.make,
+            model=result.model,
+            car_type=result.car_type,
+            year_estimate=result.year,
+            car_rarity=result.car_rarity,
+            latitude=latitude,
+            longitude=longitude,
+        )
         try:
-            # Upload image to S3 with better error handling
+            self.db.add(db_record)
+            self.db.commit()
+            return db_record.id
+        except Exception as e:
+            self.db.rollback()
+            raise RuntimeError(f"Failed to insert identification record: {e}")
+
+    def upload_image_to_s3(
+        self,
+        s3_key: str,
+        image_data: bytes,
+        image_filename: str,
+        result: CarIdentificationResult,
+    ) -> None:
+        """Upload image bytes to S3 using a pre-determined key. Safe to call in a background task."""
+        file_extension = image_filename.split('.')[-1].lower()
+        try:
             t0 = time.perf_counter()
             self.s3_client.put_object(
                 Bucket=self.bucket,
@@ -64,8 +132,8 @@ class CarStorageService:
                     'original_filename': image_filename,
                     'upload_timestamp': datetime.utcnow().isoformat(),
                     'is_car': str(result.is_car),
-                    'confidence': result.confidence or 'unknown'
-                }
+                    'confidence': result.confidence or 'unknown',
+                },
             )
             logger.info(
                 "s3_upload",
@@ -75,56 +143,10 @@ class CarStorageService:
                     "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
                 },
             )
-            
-            # Prepare JSON data
-            identification_json = {
-                'is_car': result.is_car,
-                'make': result.make,
-                'model': result.model,
-                'description': result.description,
-                'year': result.year,
-                'length': result.length,
-                'car_type': result.car_type,
-                'confidence': result.confidence,
-                'body_type': result.body_type,
-                'features': result.features or [],
-                'car_rarity': result.car_rarity,
-            }
-            
-            # Store in database
-            db_record = CarIdentification(
-                user_id=user_id,
-                image_filename=image_filename,
-                s3_image_key=s3_key,
-                is_car=result.is_car,
-                confidence=result.confidence,
-                identification_data=identification_json,
-                make=result.make,
-                model=result.model,
-                car_type=result.car_type,
-                year_estimate=result.year,
-                car_rarity=result.car_rarity,
-                latitude=latitude,
-                longitude=longitude
-            )
-            
-            self.db.add(db_record)
-            self.db.commit()
-            
-            return db_record.id
-            
         except Exception as e:
-            self.db.rollback()
-            # More specific error handling
-            if "NoCredentialsError" in str(type(e)):
-                raise RuntimeError("AWS credentials not configured properly")
-            elif "NoSuchBucket" in str(e):
-                raise RuntimeError(f"S3 bucket '{self.bucket}' does not exist")
-            elif "AccessDenied" in str(e):
-                raise RuntimeError("Access denied to S3 bucket - check AWS permissions")
-            else:
-                raise RuntimeError(f"Failed to store identification result: {str(e)}")
-    
+            # Non-fatal — DB record exists; image missing but identification data preserved
+            logger.error("s3_upload_failed: %s key=%s", e, s3_key)
+
     def get_identification_results(
         self, 
         limit: int = 50,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -79,6 +79,7 @@ def get_car_identifier() -> AnthropicCarIdentifier:
 @limiter.limit("20/minute")
 async def identify_car_from_image(
     request: Request,
+    background_tasks: BackgroundTasks,
     image: UploadFile = File(..., description="Image file to analyze"),
     requested_fields: Optional[str] = Form(
         ['make', 'model', 'description', 'year', 'length', 'car_type', 'body_type', 'features'],
@@ -201,74 +202,63 @@ async def identify_car_from_image(
                 if retry.plates_detected > 0:
                     final_image_data = retry.image_data
 
-        # Store to S3 + DB only when a car was detected (blurred image stored)
+        # Stage 4a (foreground, fast): DB insert only — gets identification_id immediately
         identification_id = None
         image_url = None
+        _s3_key = None
         if store_results and result.is_car:
+            import uuid as _uuid_mod
+            _ts = datetime.utcnow().strftime("%Y/%m/%d")
+            _ext = (image.filename or "car.jpg").split('.')[-1].lower()
+            _s3_key = f"car-images/{_ts}/{_uuid_mod.uuid4()}.{_ext}"
             storage_service = CarStorageService(
                 db_session=db,
                 s3_bucket=aws_bucket_name or "carid-images",
             )
-            identification_id = await storage_service.store_identification_result(
+            identification_id = storage_service.insert_identification_record(
+                s3_key=_s3_key,
                 image_filename=image.filename or "car_image.jpg",
-                image_data=final_image_data,
                 result=result,
                 user_id=current_user.id if current_user else None,
                 latitude=latitude,
                 longitude=longitude,
             )
-            # Generate presigned URL so the client can display the stored image immediately
             if identification_id:
-                db_car = (
-                    db.query(CarIdentification)
-                    .filter(CarIdentification.id == identification_id)
-                    .first()
-                )
-                if db_car and db_car.s3_image_key:
-                    try:
-                        image_url = s3_client.generate_presigned_url(
-                            'get_object',
-                            Params={
-                                'Bucket': aws_bucket_name or 'carid-images',
-                                'Key': db_car.s3_image_key,
-                            },
-                            ExpiresIn=3600,
-                        )
-                    except Exception:
-                        base_url = str(request.base_url).rstrip('/')
-                        image_url = f"{base_url}/api/v1/cars/identifications/{identification_id}/image"
+                base_url = str(request.base_url).rstrip('/')
+                image_url = f"{base_url}/api/v1/cars/identifications/{identification_id}/image"
 
-        # Increment weekly camera usage counter now that identification succeeded
+        # Increment weekly camera usage counter
         stats.weekly_count += 1
         db.commit()
 
-        # Award any newly-crossed badges (fires only when a car was successfully identified)
+        # Stage 4b (background): S3 upload + badge check — does not block the response
         newly_awarded_badges: list[dict] = []
-        if result.is_car and current_user:
-            try:
-                awarded_ids = check_and_award_badges(db, current_user.id)
-                if awarded_ids:
-                    awarded_badge_rows = db.query(Badge).filter(Badge.id.in_(awarded_ids)).all()
-                    for b in awarded_badge_rows:
-                        badge_image_url = None
-                        if b.s3_key:
-                            try:
-                                badge_image_url = s3_client.generate_presigned_url(
-                                    'get_object',
-                                    Params={'Bucket': aws_bucket_name or 'carid-images', 'Key': b.s3_key},
-                                    ExpiresIn=3600 * 24 * 7,
-                                )
-                            except Exception:
-                                pass
-                        newly_awarded_badges.append({
-                            'id': b.id,
-                            'name': b.name,
-                            'required_images': b.required_images,
-                            'image_url': badge_image_url,
-                        })
-            except Exception as _badge_exc:
-                # Badge award failure must never break the identification response
-                logger.warning("Badge award failed: %s", _badge_exc)
+        if store_results and result.is_car and _s3_key and identification_id:
+            _bg_storage = CarStorageService(
+                db_session=db,
+                s3_bucket=aws_bucket_name or "carid-images",
+            )
+            _captured_result = result
+            _captured_image_data = final_image_data
+            _captured_filename = image.filename or "car_image.jpg"
+            _captured_user = current_user
+
+            def _background_work():
+                _bg_storage.upload_image_to_s3(
+                    s3_key=_s3_key,
+                    image_data=_captured_image_data,
+                    image_filename=_captured_filename,
+                    result=_captured_result,
+                )
+                if _captured_user:
+                    try:
+                        awarded_ids = check_and_award_badges(db, _captured_user.id)
+                        if awarded_ids:
+                            logger.info("badges_awarded: user=%s badges=%s", _captured_user.id, awarded_ids)
+                    except Exception as _badge_exc:
+                        logger.warning("Badge award failed in background: %s", _badge_exc)
+
+            background_tasks.add_task(_background_work)
 
         # Build response
         response_data: dict = {
