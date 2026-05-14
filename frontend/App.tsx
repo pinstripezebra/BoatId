@@ -158,10 +158,31 @@ function App(): React.JSX.Element {
   }, []);
 
   const loadNearbyCars = useCallback(async () => {
+    // Soft-fallback location (Portland, OR) used when the user's location is
+    // unavailable OR when the user's location returns zero nearby cars.
+    const FALLBACK_LAT = 45.5051;
+    const FALLBACK_LNG = -122.6750;
+
+    const mapResults = (results: any[]): DetailCarData[] =>
+      results.slice(0, 5).map(item => ({
+        id: item.id.toString(),
+        name: item.model
+          ? `${item.make || ''} ${item.model}`.trim()
+          : item.make || 'Unknown Car',
+        make: item.make || undefined,
+        model: item.model || undefined,
+        type: item.car_type || undefined,
+        year: item.year_estimate || undefined,
+        confidence: item.confidence || undefined,
+        image: item.image_url ? { uri: item.image_url } : undefined,
+        identification_data: item.identification_data,
+      }));
+
     try {
       // Try to get the user's real location first
-      let latitude = 45.5051;
-      let longitude = -122.6750;
+      let latitude = FALLBACK_LAT;
+      let longitude = FALLBACK_LNG;
+      let usedRealLocation = false;
       try {
         if (Platform.OS === 'android') {
           const granted = await PermissionsAndroid.request(
@@ -183,6 +204,7 @@ function App(): React.JSX.Element {
             );
             latitude = position.latitude;
             longitude = position.longitude;
+            usedRealLocation = true;
           }
         } else {
           const position = await new Promise<{latitude: number; longitude: number}>((resolve, reject) =>
@@ -194,26 +216,31 @@ function App(): React.JSX.Element {
           );
           latitude = position.latitude;
           longitude = position.longitude;
+          usedRealLocation = true;
         }
       } catch {
         // Permission denied or location unavailable — use fallback
       }
-      setUserLocation({latitude, longitude});
+
+      console.log('[loadNearbyCars] querying', { latitude, longitude, usedRealLocation });
       const data = await CarApiService.getNearbyCars(latitude, longitude, 200);
-      const mapped: DetailCarData[] = data.results.slice(0, 5).map(item => ({
-        id: item.id.toString(),
-        name: item.model
-          ? `${item.make || ''} ${item.model}`.trim()
-          : item.make || 'Unknown Car',
-        make: item.make || undefined,
-        model: item.model || undefined,
-        type: item.car_type || undefined,
-        year: item.year_estimate || undefined,
-        confidence: item.confidence || undefined,
-        image: item.image_url ? { uri: item.image_url } : undefined,
-        identification_data: item.identification_data,
-      }));
-      setNearbyCars(mapped);
+      console.log('[loadNearbyCars] received', data.results.length, 'results');
+
+      // Soft fallback: if the user's real location returned no cars, retry
+      // against Portland, OR so the section isn't empty in dev/demo scenarios.
+      if (usedRealLocation && data.results.length === 0) {
+        console.log('[loadNearbyCars] no cars near real location — falling back to Portland');
+        latitude = FALLBACK_LAT;
+        longitude = FALLBACK_LNG;
+        const fallbackData = await CarApiService.getNearbyCars(latitude, longitude, 200);
+        console.log('[loadNearbyCars] fallback returned', fallbackData.results.length, 'results');
+        setUserLocation({ latitude, longitude });
+        setNearbyCars(mapResults(fallbackData.results));
+        return;
+      }
+
+      setUserLocation({ latitude, longitude });
+      setNearbyCars(mapResults(data.results));
     } catch (error) {
       console.error('Failed to load nearby cars:', error);
     }
