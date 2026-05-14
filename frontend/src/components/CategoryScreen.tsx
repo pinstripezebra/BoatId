@@ -311,8 +311,8 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({
   onCarPress,
   isLiked,
   onLikeToggle,
-  latitude = 39.8,
-  longitude = -98.6,
+  latitude = 45.5051,
+  longitude = -122.6750,
   radiusKm = 200,
 }) => {
   const isDarkMode = useColorScheme() === 'dark';

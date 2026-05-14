@@ -73,6 +73,7 @@ function App(): React.JSX.Element {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showUpgradeScreen, setShowUpgradeScreen] = useState(false);
   const [earnedBadges, setEarnedBadges] = useState<NewlyAwardedBadge[]>([]);
+  const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number}>({latitude: 45.5051, longitude: -122.6750});
   // Guest auth flow state: which login sub-screen to show when a guest taps profile/auth
   const [guestAuthView, setGuestAuthView] = useState<'login' | 'verify' | 'forgot' | 'reset' | null>(null);
 
@@ -197,6 +198,7 @@ function App(): React.JSX.Element {
       } catch {
         // Permission denied or location unavailable — use fallback
       }
+      setUserLocation({latitude, longitude});
       const data = await CarApiService.getNearbyCars(latitude, longitude, 200);
       const mapped: DetailCarData[] = data.results.slice(0, 5).map(item => ({
         id: item.id.toString(),
@@ -491,6 +493,9 @@ function App(): React.JSX.Element {
           onCarPress={handleCarPress}
           isLiked={isCarLiked}
           onLikeToggle={handleLikeToggle}
+          latitude={categoryScreen === 'nearby' ? userLocation.latitude : undefined}
+          longitude={categoryScreen === 'nearby' ? userLocation.longitude : undefined}
+          radiusKm={categoryScreen === 'nearby' ? 200 : undefined}
         />
       ) : (
         <ScrollView
