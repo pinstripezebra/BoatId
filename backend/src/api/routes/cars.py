@@ -529,7 +529,7 @@ async def get_nearby_cars(
     request: Request,
     latitude: float = Query(..., description="Center latitude"),
     longitude: float = Query(..., description="Center longitude"),
-    radius_km: float = Query(25, ge=0.1, le=100, description="Search radius in kilometers (max 100)"),
+    radius_km: float = Query(25, ge=0.1, le=200, description="Search radius in kilometers (max 200)"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=50, description="Items per page"),
     db: Session = Depends(get_db)
@@ -569,16 +569,25 @@ async def get_nearby_cars(
     
     cars = []
     for record in results:
+        # existence with a lightweight head_object call first.
+        if record.s3_image_key:
+            try:
+                storage_service.s3_client.head_object(
+                    Bucket=storage_service.bucket, Key=record.s3_image_key
+                )
+            except Exception:
+                # Object missing or inaccessible — omit this car from results
+                continue
+
         try:
             image_url = storage_service.s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': storage_service.bucket, 'Key': record.s3_image_key},
                 ExpiresIn=3600
-            )
+            ) if record.s3_image_key else None
         except Exception:
-            base_url = str(request.base_url).rstrip('/')
-            image_url = f"{base_url}/api/v1/cars/identifications/{record.id}/image"
-        
+            image_url = None
+
         cars.append({
             'id': record.id,
             'latitude': record.latitude,
@@ -593,11 +602,15 @@ async def get_nearby_cars(
             'created_at': record.created_at.isoformat() if record.created_at else None,
         })
     
+    total_count = len(cars) + (offset if page > 1 else 0) + (1 if has_more else 0)
+    total_pages = page + (1 if has_more else 0)
     return {
         "results": cars,
         "count": len(cars),
         "page": page,
         "per_page": per_page,
+        "total_count": total_count,
+        "total_pages": total_pages,
         "has_more": has_more,
         "center": {"latitude": latitude, "longitude": longitude},
         "radius_km": radius_km

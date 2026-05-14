@@ -18,7 +18,10 @@ import {
   useColorScheme,
   Alert,
   ActivityIndicator,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 
 import LoginScreen from './src/components/LoginScreen';
 import VerificationScreen from './src/components/VerificationScreen';
@@ -155,8 +158,46 @@ function App(): React.JSX.Element {
 
   const loadNearbyCars = useCallback(async () => {
     try {
-      // Use a broad radius from a central US location to get varied results
-      const data = await CarApiService.getNearbyCars(39.8, -98.6, 5000);
+      // Try to get the user's real location first
+      let latitude = 45.5051;
+      let longitude = -122.6750;
+      try {
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: 'Location Permission',
+              message: 'CarId would like to show cars near you.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Skip',
+            },
+          );
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            const position = await new Promise<{latitude: number; longitude: number}>((resolve, reject) =>
+              Geolocation.getCurrentPosition(
+                pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                reject,
+                { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+              ),
+            );
+            latitude = position.latitude;
+            longitude = position.longitude;
+          }
+        } else {
+          const position = await new Promise<{latitude: number; longitude: number}>((resolve, reject) =>
+            Geolocation.getCurrentPosition(
+              pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+              reject,
+              { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+            ),
+          );
+          latitude = position.latitude;
+          longitude = position.longitude;
+        }
+      } catch {
+        // Permission denied or location unavailable — use fallback
+      }
+      const data = await CarApiService.getNearbyCars(latitude, longitude, 200);
       const mapped: DetailCarData[] = data.results.slice(0, 5).map(item => ({
         id: item.id.toString(),
         name: item.model
@@ -250,7 +291,7 @@ function App(): React.JSX.Element {
       );
       getCachedOrFetch(
         'nearbyCars',
-        () => CarApiService.getNearbyCars(39.8, -98.6, 5000),
+        () => CarApiService.getNearbyCars(45.5051, -122.6750, 200),
         { ttl: 5 * 60 * 1000 }
       );
       getCachedOrFetch(

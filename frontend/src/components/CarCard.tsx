@@ -18,6 +18,7 @@ interface CarCardProps extends CarCardData {
 
 const CarCard: React.FC<CarCardProps> = ({id, name, type, make, image, onPress, isLiked, onLikeToggle}) => {
   const isDarkMode = useColorScheme() === 'dark';
+  const [imageError, setImageError] = React.useState(false);
 
   const cardBg = isDarkMode ? '#2a2a2a' : '#ffffff';
   const textColor = isDarkMode ? '#ffffff' : '#333333';
@@ -29,8 +30,13 @@ const CarCard: React.FC<CarCardProps> = ({id, name, type, make, image, onPress, 
       onPress={onPress}
       activeOpacity={0.8}>
       <View>
-        {image && typeof image === 'object' && 'uri' in image && image.uri ? (
-          <CachedImage source={{ uri: image.uri }} style={styles.image} resizeMode="cover" />
+        {!imageError && image && typeof image === 'object' && 'uri' in image && image.uri ? (
+          <CachedImage
+            source={{ uri: image.uri }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Text style={styles.placeholderEmoji}>�</Text>

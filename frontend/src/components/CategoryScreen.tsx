@@ -313,7 +313,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({
   onLikeToggle,
   latitude = 39.8,
   longitude = -98.6,
-  radiusKm = 5000,
+  radiusKm = 200,
 }) => {
   const isDarkMode = useColorScheme() === 'dark';
   const bgColor = isDarkMode ? '#1a1a1a' : '#f8f9fa';
