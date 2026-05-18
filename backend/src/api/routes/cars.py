@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from typing import Optional, List, Dict, Any
 import json
 import os
@@ -529,20 +529,23 @@ async def get_nearby_cars(
     request: Request,
     latitude: float = Query(..., description="Center latitude"),
     longitude: float = Query(..., description="Center longitude"),
-    radius_km: float = Query(25, ge=0.1, le=200, description="Search radius in kilometers (max 200)"),
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(20, ge=1, le=50, description="Items per page"),
+    radius_km: float = Query(25, ge=0.1, le=2000, description="Search radius in kilometers (max 2000)"),
     db: Session = Depends(get_db)
 ):
-    """Get car identifications within a given radius of a location."""
-    
+    """Get car identifications within a given radius of a location. Returns at most 50 nearest cars."""
+
     # Approximate bounding box filter (1 degree lat ≈ 111 km)
     import math
     lat_delta = radius_km / 111.0
     lng_delta = radius_km / (111.0 * max(abs(math.cos(math.radians(latitude))), 0.01))
 
-    offset = (page - 1) * per_page
-    # Fetch one extra row to detect a next page without an expensive COUNT(*) full scan
+    # Order by approximate distance² (nearest first). cos_lat corrects longitude compression.
+    cos_lat = math.cos(math.radians(latitude))
+    distance_expr = (
+        func.pow(CarIdentification.latitude - latitude, 2) +
+        func.pow((CarIdentification.longitude - longitude) * cos_lat, 2)
+    )
+
     results = (
         db.query(CarIdentification)
         .filter(
@@ -554,29 +557,25 @@ async def get_nearby_cars(
                 CarIdentification.longitude.between(longitude - lng_delta, longitude + lng_delta),
             )
         )
-        .order_by(CarIdentification.created_at.desc())
-        .offset(offset)
-        .limit(per_page + 1)
+        .order_by(distance_expr.asc())
+        .limit(50)
         .all()
     )
-    has_more = len(results) > per_page
-    results = results[:per_page]
-    
+
     storage_service = CarStorageService(
         db_session=db,
         s3_bucket=aws_bucket_name or "carid-images"
     )
-    
+
     cars = []
     for record in results:
-        # existence with a lightweight head_object call first.
+        # Skip records whose S3 object is missing or inaccessible.
         if record.s3_image_key:
             try:
                 storage_service.s3_client.head_object(
                     Bucket=storage_service.bucket, Key=record.s3_image_key
                 )
             except Exception:
-                # Object missing or inaccessible — omit this car from results
                 continue
 
         try:
@@ -601,17 +600,10 @@ async def get_nearby_cars(
             'identification_data': record.identification_data,
             'created_at': record.created_at.isoformat() if record.created_at else None,
         })
-    
-    total_count = len(cars) + (offset if page > 1 else 0) + (1 if has_more else 0)
-    total_pages = page + (1 if has_more else 0)
+
     return {
         "results": cars,
         "count": len(cars),
-        "page": page,
-        "per_page": per_page,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "has_more": has_more,
         "center": {"latitude": latitude, "longitude": longitude},
         "radius_km": radius_km
     }

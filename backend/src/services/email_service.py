@@ -40,7 +40,7 @@ def send_verification_email(to_email: str, code: str) -> bool:
         logger.info("Verification email sent to %s", to_email)
         return True
     except Exception as e:
-        logger.error("Failed to send verification email to %s: %s", to_email, e)
+        logger.error("Failed to send verification email to %s: %s: %s", to_email, type(e).__name__, e)
         return False
 
 
@@ -72,5 +72,5 @@ def send_password_reset_email(to_email: str, code: str) -> bool:
         logger.info("Password reset email sent to %s", to_email)
         return True
     except Exception as e:
-        logger.error("Failed to send password reset email to %s: %s", to_email, e)
+        logger.error("Failed to send password reset email to %s: %s: %s", to_email, type(e).__name__, e)
         return False

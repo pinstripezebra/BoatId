@@ -108,10 +108,6 @@ export interface NearbyCar {
 export interface NearbyCarsResponse {
   results: NearbyCar[];
   count: number;
-  page: number;
-  per_page: number;
-  total_count: number;
-  total_pages: number;
   center: { latitude: number; longitude: number };
   radius_km: number;
 }
@@ -274,15 +270,11 @@ export class CarApiService {
     latitude: number,
     longitude: number,
     radiusKm: number = 50,
-    page: number = 1,
-    perPage: number = 20
   ): Promise<NearbyCarsResponse> {
     const queryParams = new URLSearchParams({
       latitude: latitude.toString(),
       longitude: longitude.toString(),
       radius_km: radiusKm.toString(),
-      page: page.toString(),
-      per_page: perPage.toString(),
     });
     return await HttpClient.get<NearbyCarsResponse>(`api/v1/cars/nearby?${queryParams.toString()}`);
   }

@@ -16,8 +16,8 @@ module.exports = {
       eas: {
         projectId: 'd2732bdc-08fc-4024-a74c-aacf837feeb3',
       },
-      revenueCatIosKey: process.env.REVENUECAT_IOS_API_KEY ?? '',
-      revenueCatAndroidKey: process.env.REVENUECAT_ANDROID_API_KEY ?? '',
+      revenueCatIosKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
+      revenueCatAndroidKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
     },
     owner: 'pinstripezebra',
   },

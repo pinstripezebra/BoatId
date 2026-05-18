@@ -98,7 +98,11 @@ export class AuthService {
     });
 
     // Initialize RevenueCat with the authenticated user's ID
-    await SubscriptionService.initialize(data.user_id);
+    try {
+      await SubscriptionService.initialize(data.user_id);
+    } catch (e) {
+      console.warn('RevenueCat initialization failed (subscriptions unavailable):', e);
+    }
 
     return data;
   }
@@ -154,7 +158,11 @@ export class AuthService {
     });
 
     // Initialize RevenueCat with the authenticated user's ID
-    await SubscriptionService.initialize(data.user_id);
+    try {
+      await SubscriptionService.initialize(data.user_id);
+    } catch (e) {
+      console.warn('RevenueCat initialization failed (subscriptions unavailable):', e);
+    }
 
     return data;
   }
